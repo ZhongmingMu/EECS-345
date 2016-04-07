@@ -73,22 +73,6 @@ func msgRouter(userManagementChan chan user, pubMsgChan chan usermsg)  {
     }
 }
 
-/*
-func recvFromSock(conn net.Conn, sockChan chan string)  {
-    buf := bufio.NewReader(conn)
-    for {
-        msg, err := buf.ReadString('\n')
-        if err != nil {
-            conn.Close()
-            // signal user end of connection
-            sockChan <- ""
-            return
-        }
-        sockChan <- msg
-    }
-}
-*/
-
 func handleConnection(idAssignmentChan chan string, conn net.Conn, 
                       userManagment chan user, pubMsgChan chan usermsg)  {
     // private msgchan
