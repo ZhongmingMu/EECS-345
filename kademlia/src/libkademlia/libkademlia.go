@@ -88,6 +88,7 @@ func (e *ContactNotFoundError) Error() string {
 
 // find the left's bucket num containing right
 
+/*
 func FindBucketNum(left ID, right ID) int {
 	res := left.Xor(right)
 	dig := b - 1
@@ -104,6 +105,11 @@ func FindBucketNum(left ID, right ID) int {
 		}
 	} 
 	return 161
+}
+*/
+func FindBucketNum(lhs ID, rhs Id) int {
+	distance := lhs.Xor(rhs)
+	return b - distance.PrefixLen() - 1
 }
 
 // x
