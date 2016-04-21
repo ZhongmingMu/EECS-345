@@ -22,6 +22,7 @@ func main() {
 	// TODO: PUT YOUR GROUP'S NET IDS HERE!
 	// Example:
 	// netIds := "abc123 def456 ghi789"
+
 	netIds := "zsc791 gls342 zmh358"
 	if len(netIds) == 0 {
 		log.Fatal("Variable containing group's net IDs is not set!\n")
@@ -38,10 +39,10 @@ func main() {
 	if len(args) != 2 {
 		log.Fatal("Must be invoked with exactly two arguments!\n")
 	}
-	listenStr := args[0]
-	firstPeerStr := args[1]
+	listenStr := args[0]			// FIRST ADDR
+	firstPeerStr := args[1]			// SECOND CONTACT(PING PONG)
 
-	// Create the Kademlia instance
+	// Create the Kademlia instance, CREATE THE SERVER AND RUN FOREVER
 	log.Println("Kademlia starting up!")
 	log.Println("Group: " + netIds + "\n")
 

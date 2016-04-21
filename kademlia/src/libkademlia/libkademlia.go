@@ -22,14 +22,19 @@ const (
 type Kademlia struct {
 	NodeID      ID
 	SelfContact Contact
+	RouteTable  []K_Buckets			// 0 based 
+	RTManagerChan   chan Contact
 }
+
+ 
+
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k := new(Kademlia)
 	k.NodeID = nodeID
 
 	// TODO: Initialize other state here as you add functionality.
-
+	 !!!initial 160 lists, go updatethread,initial channel
 	// Set up RPC server
 	// NOTE: KademliaRPC is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -46,6 +51,9 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	if err != nil {
 		log.Fatal("Listen: ", err)
 	}
+
+	// handle update
+	// go k.RouteTableUpdateHandler()
 
 	// Run RPC server forever.
 	go http.Serve(l, nil)
@@ -78,11 +86,72 @@ func (e *ContactNotFoundError) Error() string {
 	return fmt.Sprintf("%x %s", e.id, e.msg)
 }
 
+// find the left's bucket num containing right
+
+func FindBucketNum(left ID, right ID) int {
+	res := left.Xor(right)
+	dig := b - 1
+	for i := len(res); i >= 0; i-- {
+		if(res[i] != 0){
+			dig = i
+			break
+		}
+	}
+
+	for j := 7; j >= 0; j-- {
+		if(res[dig] >> uint8(j) & 0x1 != 0){
+			return (dig - 1) * 8 + j               //bot, num of list
+		}
+	} 
+	return 161
+}
+
+// x
+func (k *Kademlia) UpdateRouteTable(c *Contact) {
+	num := FindBucketNum(k.NodeID, c.NodeID) 
+	l := k.RouteTable[num]								// list should contain c
+
+	_, erro := k.FindContact(c.NodeID)
+	if erro == nil{
+		l.MoveToTail(c)
+	} else {
+		if !l.CheckFull() {
+			l.AddTail(c)
+		} else {
+			head := l.GetHead()
+			_, erro := k.DoPing(head.Host, head.Port)
+			if erro != nil {
+				l.RemoveHead()
+				l.AddTail(c)
+			}
+		} 
+	}
+}
+
+// one thread running Ro..Handler for thread safe
+func (k *Kademlia) RouteTableUpdateHandler() {
+	for {
+		select {
+			case c := <- k.RTManagerChan: 
+				k.UpdateRouteTable(&c)
+		}
+	}
+}
+
 func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	// TODO: Search through contacts, find specified ID
 	// Find contact with provided ID
 	if nodeId == k.SelfContact.NodeID {
 		return &k.SelfContact, nil
+	} else {
+		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
+		l := k.RouteTable[num].bucket
+		for e := l.Front(); e != nil; e = e.Next() {
+			if e.Value.(* Contact).NodeID.Equals(nodeId) {
+				return e.Value.(* Contact), nil
+			}
+
+		}
 	}
 	return nil, &ContactNotFoundError{nodeId, "Not found"}
 }
