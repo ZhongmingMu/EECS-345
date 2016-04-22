@@ -6,14 +6,14 @@ import (
 
 type K_Buckets struct {
 	bucket 		*list.List
-	distance 	int				//0 based
+	index 	int				//0 based
 //	num			int
 	size  		int 
 }
 
-func NewKBuckets(k int, dis int) *K_Buckets {
+func NewKBuckets(k int, inx int) *K_Buckets {
 	nb := new(K_Buckets)			// create a new k-bucket
-	nb.distance = dis  				// set distance of this bucket
+	nb.index = inx  				// set distance of this bucket
 	l := list.New()
 	nb.bucket = l                   // set the list 
 	nb.size = k                     // set the bucket size

@@ -1,10 +1,11 @@
 package libkademlia
 
 import (
-	"bytes"
+	//"bytes"
 	"net"
 	"strconv"
 	"testing"
+	"fmt"
 	//"time"
 )
 
@@ -42,6 +43,13 @@ func TestPing(t *testing.T) {
 			"1 in its buckets before ping instance 1")
 	}
 	instance1.DoPing(host2, port2)
+
+	contact1, err := instance2.FindContact(instance1.NodeID)
+	if err != nil {
+		t.Error("Instance 1's contact not found in Instance 2's contact list")
+		return
+	}
+	fmt.Println("testing:  ins1 has inserted to instance2")
 	contact2, err = instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
@@ -53,11 +61,7 @@ func TestPing(t *testing.T) {
 		t.Error("Instance 2 should not be able to find a node with the wrong ID")
 	}
 
-	contact1, err := instance2.FindContact(instance1.NodeID)
-	if err != nil {
-		t.Error("Instance 1's contact not found in Instance 2's contact list")
-		return
-	}
+
 	if contact1.NodeID != instance1.NodeID {
 		t.Error("Instance 1 ID incorrectly stored in Instance 2's contact list")
 	}
@@ -67,6 +71,7 @@ func TestPing(t *testing.T) {
 	return
 }
 
+/*
 func TestStore(t *testing.T) {
 	// test Dostore() function and LocalFindValue() function
 	instance1 := NewKademlia("localhost:7892")
@@ -103,7 +108,7 @@ func TestFindNode(t *testing.T) {
 	  A-B -- D
 	      \
 	         E
-	*/
+
 	instance1 := NewKademlia("localhost:7894")
 	instance2 := NewKademlia("localhost:7895")
 	host2, port2, _ := StringToIpPort("localhost:7895")
@@ -144,7 +149,7 @@ func TestFindValue(t *testing.T) {
 	  A-B -- D
 	      \
 	         E
-	*/
+	
 	instance1 := NewKademlia("localhost:7926")
 	instance2 := NewKademlia("localhost:7927")
 	host2, port2, _ := StringToIpPort("localhost:7927")
@@ -185,4 +190,6 @@ func TestFindValue(t *testing.T) {
 
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
+
 }
+*/

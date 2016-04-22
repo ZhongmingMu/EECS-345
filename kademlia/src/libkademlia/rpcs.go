@@ -6,6 +6,7 @@ package libkademlia
 
 import (
 	"net"
+	"fmt"
 )
 
 type KademliaRPC struct {
@@ -33,10 +34,13 @@ type PongMessage struct {
 }
 
 func (k *KademliaRPC) Ping(ping PingMessage, pong *PongMessage) error {
+	fmt.Println(k.kademlia.SelfContact.Port)
 	// TODO: Finish implementation
 	pong.MsgID = CopyID(ping.MsgID)
 	// Specify the sender
+	pong.Sender = k.kademlia.SelfContact
 	// Update contact, etc
+	k.kademlia.RTManagerChan <- ping.Sender
 	return nil
 }
 
