@@ -112,7 +112,7 @@ func (kk *Kademlia) findCloestNodes(nodeid ID) []Contact {
 		count = count + 1
 	}
 	for ; count < k; {
-		if closestnum - diff >= 0{
+		if closestnum - diff >= 0 {
 			for e := kk.RouteTable[closestnum - diff].bucket.Front(); e != nil; e = e.Next() {
 				fmt.Printf("%d: here count %d", kk.SelfContact.Port, count)
 				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
@@ -122,9 +122,11 @@ func (kk *Kademlia) findCloestNodes(nodeid ID) []Contact {
 				}
 			}
 		}
+		
 		if(count >= k - 1) {
 			break
 		}
+		
 		if closestnum + diff < b{
 			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
 				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
