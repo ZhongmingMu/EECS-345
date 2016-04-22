@@ -18,16 +18,23 @@ const (
 	k     = 20
 )
 
+
+type KVpair struct {
+	key 	ID
+	value	[]byte
+}
 // Kademlia type. You can put whatever state you need in this.
 type Kademlia struct {
-	NodeID      ID
-	SelfContact Contact
-	RouteTable  []K_Buckets			// 0 based 
+	NodeID      	ID
+	SelfContact 	Contact
+	
+	RouteTable  	[]K_Buckets			// 0 based 
+	DataStore		map[ID][]byte
+	
 	RTManagerChan   chan Contact
+	DataStoreChan	chan KVpair	
+	SearchKeyChan	chan ID
 }
-
- 
-
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k := new(Kademlia)
@@ -39,7 +46,11 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	for i := 0; i < b; i++ {
 		k.RouteTable[i] = *NewKBuckets(20, i)
 	}
+	
 	k.RTManagerChan = make(chan Contact)
+	k.DataStoreChan = make(chan KVpair)
+	k.DataStore = make(map[ID][]byte)
+	
 	// Set up RPC server
 	// NOTE: KademliaRPC is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -50,7 +61,8 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	if err != nil {
 		return nil
 	}
-	fmt.Println("begin start server")
+	
+	fmt.Printf("%d: begin start server", k.SelfContact.Port)
 	s.HandleHTTP(rpc.DefaultRPCPath + port,
 		rpc.DefaultDebugPath + port)
 	l, err := net.Listen("tcp", laddr)
@@ -58,7 +70,7 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		log.Fatal("Listen: ", err)
 	}
 		// handle update
-	go k.RouteTableUpdateHandler()
+	go k.UpdateHandler()
 
 	// Run RPC server forever.
 	go http.Serve(l, nil)
@@ -75,7 +87,8 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		}
 	}
 	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
-	fmt.Println("create new kademlia node ")
+	
+	fmt.Printf("%d: create new kademlia node ", k.SelfContact.Port)
 	return k
 }
 
@@ -93,36 +106,14 @@ func (e *ContactNotFoundError) Error() string {
 }
 
 // find the left's bucket num containing right
-
-/*
-func FindBucketNum(left ID, right ID) int {
-	res := left.Xor(right)
-	dig := b - 1
-	for i := len(res); i >= 0; i-- {
-		if(res[i] != 0){
-			dig = i
-			break
-		}
-	}
-
-	for j := 7; j >= 0; j-- {
-		if(res[dig] >> uint8(j) & 0x1 != 0){
-			return (dig - 1) * 8 + j               //bot, num of list
-		}
-	} 
-	return 161
-}
-*/
 func FindBucketNum(lhs ID, rhs ID) int {
 	distance := lhs.Xor(rhs)
 	//fmt.Println(distance.PrefixLen())
 	return b - distance.PrefixLen() - 1
 }
 
-// x
+// Update my RouteTable
 func (k *Kademlia) UpdateRouteTable(c *Contact) {
-	fmt.Println("update starts")
-
 	num := FindBucketNum(k.NodeID, c.NodeID) 
 	fmt.Printf("%d: insert num: %d \n", k.SelfContact.Port, num)
 
@@ -134,7 +125,6 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 	} else {
 		if !l.CheckFull() {
 			l.AddTail(c)
-
 			fmt.Println(l.bucket.Len())
 		} else {
 			head := l.GetHead()
@@ -147,14 +137,24 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 	}
 }
 
+func (k *Kademlia) UpdateDataStore(p *KVpair)  {
+	k.DataStore[p.key] = p.value
+}
+
 // one thread running Ro..Handler for thread safe
-func (k *Kademlia) RouteTableUpdateHandler() {
-	//fmt.Printf("%d: start RouteTableUpdateHandler \n", k.SelfContact.Port)
+func (k *Kademlia) UpdateHandler() {
+	fmt.Printf("%d: starting UpdateHandler \n", k.SelfContact.Port)
 	for {
-			select{
+			select {
 				case c := <- k.RTManagerChan:
 					fmt.Printf("%d: before update RT \n", k.SelfContact.Port)
 					k.UpdateRouteTable(&c)
+				case p := <- k.DataStoreChan:
+					fmt.Printf("%d: before DataStore \n", k.SelfContact.Port)
+					k.UpdateDataStore(&p)
+				// case key := <- k.SearchKeyChan:	
+				default:
+					continue
 			}
 	}
 }
@@ -190,14 +190,12 @@ func (e *CommandFailed) Error() string {
 
 func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 	// TODO: Implement
-	ping := new(PingMessage)
-	ping.Sender = k.SelfContact
-	ping.MsgID = NewRandomID()
-	var pong PongMessage
+	ping := PingMessage{k.SelfContact, NewRandomID()}
+	pong := new(PongMessage)
+	
 	//client, err := rpc.DialHTTPPath("tcp", host.String() + ":" + strconv.Itoa(int (port)),
 	//	                 rpc.DefaultRPCPath + strconv.Itoa(int (port)))
 	firstPeerStr := host.String()+ ":" + strconv.Itoa(int (port))
-	fmt.Println(firstPeerStr)
 	//client, err := rpc.DialHTTP("tcp", firstPeerStr)
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + strconv.Itoa(int(port)))
 	fmt.Printf("%d: finish dialhttpath: \n", k.SelfContact.Port)
@@ -210,7 +208,10 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 	}
 
 	err = client.Call("KademliaRPC.Ping", ping, &pong)					// call remote server
-
+    defer func() {
+		client.Close()
+	} ()
+	
 	fmt.Printf("%d: finish remote ping: \n", k.SelfContact.Port)
 	if err == nil {
 		fmt.Printf("%d: call succesfull: \n", k.SelfContact.Port)
@@ -225,16 +226,74 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 		return nil, &CommandFailed{
 		"Unable to ping " + fmt.Sprintf("%s:%v", host.String(), port)}
 	}
+	
 }
 
 func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 	// TODO: Implement
-	return &CommandFailed{"Not implemented"}
+	
+	storeReq := StoreRequest{k.SelfContact, NewRandomID(), key, value}
+	storeRes := new(StoreResult)
+	
+	portStr := strconv.Itoa(int (contact.Port))
+	firstPeerStr := contact.Host.String()+ ":" + portStr
+	
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+
+	if err != nil {
+		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
+		//log.Fatal("dialing:", err)
+		return &CommandFailed{
+		"Unable to ping " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
+	}
+	
+	err = client.Call("KademliaRPC.Store", storeReq, &storeRes)
+	defer func() {
+		client.Close()
+	} ()
+	
+	if storeRes.Err != nil {
+		return storeRes.Err
+	}
+	
+	if storeReq.MsgID.Equals(storeRes.MsgID) {
+		k.RTManagerChan <- *contact
+	}
+	
+	return nil	
 }
 
 func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error) {
 	// TODO: Implement
-	return nil, &CommandFailed{"Not implemented"}
+	req := FindNodeRequest{k.SelfContact, NewRandomID(), searchKey}
+	res := new(FindNodeResult)
+	
+	portStr := strconv.Itoa(int (contact.Port))
+	firstPeerStr := contact.Host.String()+ ":" + portStr
+	
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+
+	if err != nil {
+		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
+		//log.Fatal("dialing:", err)
+		return nil, &CommandFailed{
+		"Unable to FindNode " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
+	}
+	
+	err = client.Call("KademliaRPC.FindNode", req, &res)
+	defer func() {
+		client.Close()
+	} ()
+	
+	if res.Err != nil {
+		return nil, res.Err
+	}
+	
+	if req.MsgID.Equals(res.MsgID) {
+		k.RTManagerChan <- *contact
+	}
+	
+	return res.Nodes, nil
 }
 
 func (k *Kademlia) DoFindValue(contact *Contact,
@@ -245,7 +304,12 @@ func (k *Kademlia) DoFindValue(contact *Contact,
 
 func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 	// TODO: Implement
-	return []byte(""), &CommandFailed{"Not implemented"}
+	
+	// !! TODO: this is not thread safe implmentation
+	if val, ok := k.DataStore[searchKey]; ok {
+		return val, nil
+	} 
+	return []byte(""), &CommandFailed{"Value not exists"}
 }
 
 // For project 2!

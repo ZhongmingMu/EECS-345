@@ -61,6 +61,13 @@ type StoreResult struct {
 
 func (k *KademliaRPC) Store(req StoreRequest, res *StoreResult) error {
 	// TODO: Implement.
+	
+	k.kademlia.DataStoreChan <- KVpair{req.Key, req.Value}
+	k.kademlia.RTManagerChan <- req.Sender
+	
+	res.MsgID = CopyID(req.MsgID)
+	res.Err = nil
+	
 	return nil
 }
 
@@ -79,10 +86,71 @@ type FindNodeResult struct {
 	Err   error
 }
 
+func FormatTrans(c *Contact) Contact{
+	newcontact := new(Contact)
+	newcontact.Host = c.Host
+	newcontact.NodeID = c.NodeID
+	newcontact.Port = c.Port
+	
+	return *newcontact
+	
+}
+
+func (kk *Kademlia) findCloestNodes(nodeid ID) []Contact {
+	nodes := ([]Contact{})
+	
+	closestnum := FindBucketNum(kk.NodeID, nodeid)
+	count := 0
+	diff := 1
+	fmt.Printf("%d: closetnumber  %d\n", kk.SelfContact.Port, closestnum)
+	for e := kk.RouteTable[closestnum].bucket.Front(); e != nil; e = e.Next() {
+		fmt.Printf("%d: here count %d\n", kk.SelfContact.Port, count)
+		fmt.Printf("%d: list length %d\n", kk.SelfContact.Port, kk.RouteTable[closestnum].bucket.Len())
+		fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, FormatTrans(e.Value.(*Contact)).Port)
+		//fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, nodes[0].Port)
+		nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+		count = count + 1
+	}
+	for ; count < k; {
+		if closestnum - diff >= 0{
+			for e := kk.RouteTable[closestnum - diff].bucket.Front(); e != nil; e = e.Next() {
+				fmt.Printf("%d: here count %d", kk.SelfContact.Port, count)
+				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+				count = count + 1
+				if(count >= k - 1) {
+					break					
+				}
+			}
+		}
+		if(count >= k - 1) {
+			break
+		}
+		if closestnum + diff < b{
+			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
+				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+				count = count + 1
+				if(count >= k - 1){
+					break
+				}
+			}
+		}
+		diff = diff + 1
+	}
+	return nodes
+}
+
 func (k *KademliaRPC) FindNode(req FindNodeRequest, res *FindNodeResult) error {
 	// TODO: Implement.
+	nodeid := req.NodeID
+	
+	res.MsgID = CopyID(req.MsgID)
+	res.Nodes = k.kademlia.findCloestNodes(nodeid)
+	res.Err = nil
+	
+	k.kademlia.RTManagerChan <- req.Sender
 	return nil
 }
+	
 
 ///////////////////////////////////////////////////////////////////////////////
 // FIND_VALUE
@@ -99,7 +167,7 @@ type FindValueResult struct {
 	MsgID ID
 	Value []byte
 	Nodes []Contact
-	Err   error
+	Err   error    
 }
 
 func (k *KademliaRPC) FindValue(req FindValueRequest, res *FindValueResult) error {

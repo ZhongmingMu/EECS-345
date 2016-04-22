@@ -6,7 +6,7 @@ import (
 
 type K_Buckets struct {
 	bucket 		*list.List
-	index 	int				//0 based
+	index 		int				//0 based
 //	num			int
 	size  		int 
 }
