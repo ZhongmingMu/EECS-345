@@ -5,7 +5,7 @@ import (
 	"net"
 	"strconv"
 	"testing"
-		"fmt"
+	//"fmt"
 	//"time"
 )
 
@@ -67,6 +67,7 @@ func TestPing(t *testing.T) {
 	if contact2.NodeID != instance2.NodeID {
 		t.Error("Instance 2 ID incorrectly stored in Instance 1's contact list")
 	}
+
 	return
 }
 
@@ -95,10 +96,9 @@ func TestStore(t *testing.T) {
 		t.Error("Stored value did not match found value")
 	}
 	
-	
+
 	return
 }
-
 
 func TestFindNode(t *testing.T) {
 	// tree structure;
@@ -109,18 +109,20 @@ func TestFindNode(t *testing.T) {
 	  A-B -- D
 	      \
 	         E
-	*/	
+	*/
 	instance1 := NewKademlia("localhost:7894")
 	instance2 := NewKademlia("localhost:7895")
 	host2, port2, _ := StringToIpPort("localhost:7895")
 	instance1.DoPing(host2, port2)
-	t.Error("break1")
+
+//	t.Error("break1")
+	
 	contact2, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
 		return
 	}
-	
+
 	tree_node := make([]*Kademlia, 10)
 	for i := 0; i < 10; i++ {
 		address := "localhost:" + strconv.Itoa(7896+i)
@@ -128,8 +130,10 @@ func TestFindNode(t *testing.T) {
 		host_number, port_number, _ := StringToIpPort(address)
 		instance2.DoPing(host_number, port_number)
 	}
+
 	key := NewRandomID()
 	contacts, err := instance1.DoFindNode(contact2, key)
+
 	if err != nil {
 		t.Error("Error doing FindNode")
 	}
@@ -139,11 +143,13 @@ func TestFindNode(t *testing.T) {
 	}
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
-	fmt.Println("test success")
-	t.Error("finally get here")
+	
+	
 	return
 }
-/*
+
+
+
 func TestFindValue(t *testing.T) {
 	// tree structure;
 	// A->B->tree
@@ -153,7 +159,7 @@ func TestFindValue(t *testing.T) {
 	  A-B -- D
 	      \
 	         E
-	
+	*/
 	instance1 := NewKademlia("localhost:7926")
 	instance2 := NewKademlia("localhost:7927")
 	host2, port2, _ := StringToIpPort("localhost:7927")
@@ -192,8 +198,8 @@ func TestFindValue(t *testing.T) {
 		t.Error("Searching for a wrong ID did not return contacts")
 	}
 
+	return
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
 
 }
-*/

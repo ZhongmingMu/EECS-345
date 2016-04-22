@@ -23,6 +23,33 @@ type KVpair struct {
 	key 	ID
 	value	[]byte
 }
+
+type FindBucketType struct {
+	reschan		chan []Contact
+	nodeid 		ID
+}
+
+
+type ContactErr struct {
+	contact *Contact
+	err     error
+}
+
+type FindContactType struct {
+	reschan 	chan ContactErr
+	nodeid 		ID
+}
+
+type ValueRes struct {
+	err		error
+	value 	[]byte
+}
+
+type FindValueType struct {
+	reschan		chan ValueRes
+	searchkey    ID
+}
+
 // Kademlia type. You can put whatever state you need in this.
 type Kademlia struct {
 	NodeID      	ID
@@ -34,6 +61,10 @@ type Kademlia struct {
 	RTManagerChan   chan Contact
 	DataStoreChan	chan KVpair	
 	SearchKeyChan	chan ID
+
+	NodeFindChan	chan FindBucketType
+	ContactFindChan chan FindContactType
+	ValueFindChan	chan FindValueType
 }
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
@@ -50,7 +81,9 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k.RTManagerChan = make(chan Contact)
 	k.DataStoreChan = make(chan KVpair)
 	k.DataStore = make(map[ID][]byte)
-	
+	k.NodeFindChan = make(chan FindBucketType)
+	k.ContactFindChan = make(chan FindContactType)
+	k.ValueFindChan = make(chan FindValueType)
 	// Set up RPC server
 	// NOTE: KademliaRPC is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -119,7 +152,7 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 
 	l := k.RouteTable[num]								// list should contain c
 
-	_, erro := k.FindContact(c.NodeID)
+	_, erro := k.directFindContact(c.NodeID)
 	if erro == nil{
 		l.MoveToTail(c)
 	} else {
@@ -143,8 +176,9 @@ func (k *Kademlia) UpdateDataStore(p *KVpair)  {
 
 // one thread running Ro..Handler for thread safe
 func (k *Kademlia) UpdateHandler() {
-	fmt.Printf("%d: starting UpdateHandler \n", k.SelfContact.Port)
+	//fmt.Printf("%d: starting UpdateHandler \n", k.SelfContact.Port)
 	for {
+			//fmt.Printf("%d: for \n", k.SelfContact.Port)
 			select {
 				case c := <- k.RTManagerChan:
 					fmt.Printf("%d: before update RT \n", k.SelfContact.Port)
@@ -153,15 +187,110 @@ func (k *Kademlia) UpdateHandler() {
 					fmt.Printf("%d: before DataStore \n", k.SelfContact.Port)
 					k.UpdateDataStore(&p)
 				// case key := <- k.SearchKeyChan:	
+				case f := <- k.NodeFindChan:
+					fmt.Printf("%d: before FindNode \n", k.SelfContact.Port)
+					k.findCloestNodes(f.nodeid, f.reschan)
+				case cf := <- k.ContactFindChan:
+					fmt.Printf("%d: before findcontact \n", k.SelfContact.Port)
+					k.FindContactHelper(cf.nodeid, cf.reschan)
+				case v := <- k.ValueFindChan:
+					fmt.Printf("%d: before findvalue \n", k.SelfContact.Port)
+					val, err := k.LocalFindValue(v.searchkey)
+					v.reschan <- ValueRes{err, val}
 				default:
+					//fmt.Printf("%d: default \n", k.SelfContact.Port)
 					continue
 			}
 	}
 }
 
+func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
+	nodes := ([]Contact{})
+	
+	closestnum := FindBucketNum(kk.NodeID, nodeid)
+	count := 0
+	diff := 1
+
+	fmt.Printf("%d: closetnumber  %d\n", kk.SelfContact.Port, closestnum)
+
+	for e := kk.RouteTable[closestnum].bucket.Front(); e != nil; e = e.Next() {
+		fmt.Printf("%d: here count %d\n", kk.SelfContact.Port, count)
+		fmt.Printf("%d: list length %d\n", kk.SelfContact.Port, kk.RouteTable[closestnum].bucket.Len())
+		fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, FormatTrans(e.Value.(*Contact)).Port)
+		//fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, nodes[0].Port)
+		nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+		count = count + 1
+	}
+
+	for ; count < k; {
+		if closestnum - diff >= 0 {
+			for e := kk.RouteTable[closestnum - diff].bucket.Front(); e != nil; e = e.Next() {
+				fmt.Printf("%d: here count %d", kk.SelfContact.Port, count)
+				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+				count = count + 1
+				if(count >= k - 1) {
+					break					
+				}
+			}
+		}
+		
+		if(count >= k - 1) {
+			break
+		}
+		
+		if closestnum + diff < b{
+			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
+				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+				count = count + 1
+				if(count >= k - 1){
+					break
+				}
+			}
+		}
+		diff = diff + 1
+		if closestnum - diff < 0 && closestnum + diff >= b {
+			break
+		}
+	}
+	reschan <- nodes
+}
+
+
 func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	// TODO: Search through contacts, find specified ID
 	// Find contact with provided ID
+	reschan := make(chan ContactErr)
+	contactfind := FindContactType{reschan, nodeId}
+	fmt.Printf("%d: before push to findchan \n", k.SelfContact.Port)
+	k.ContactFindChan <- contactfind
+	fmt.Printf("%d: after push to findchan \n", k.SelfContact.Port)
+	res := <- contactfind.reschan
+	fmt.Printf("%d:after get from findchan \n", k.SelfContact.Port)
+	return res.contact, res.err
+}
+
+func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
+	if nodeId == k.SelfContact.NodeID {
+		reschan <- ContactErr{&k.SelfContact, nil}
+		return
+	} else {
+		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
+		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
+		l := k.RouteTable[num].bucket
+		fmt.Println(l.Len())
+		for e := l.Front(); e != nil; e = e.Next() {
+			if e.Value.(* Contact).NodeID.Equals(nodeId) {
+				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
+				reschan <- ContactErr{e.Value.(* Contact), nil}
+				return
+			}
+		}
+	}
+	reschan <- ContactErr{nil, &ContactNotFoundError{nodeId, "Not found"}}
+}
+
+// only used by functions in Updatehandler
+func (k *Kademlia) directFindContact(nodeId ID)(*Contact, error) {
 	if nodeId == k.SelfContact.NodeID {
 		return &k.SelfContact, nil
 	} else {
@@ -170,7 +299,6 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 		l := k.RouteTable[num].bucket
 		fmt.Println(l.Len())
 		for e := l.Front(); e != nil; e = e.Next() {
-			fmt.Println("FIND...")
 			if e.Value.(* Contact).NodeID.Equals(nodeId) {
 				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
 				return e.Value.(* Contact), nil
@@ -231,7 +359,6 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 
 func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 	// TODO: Implement
-	
 	storeReq := StoreRequest{k.SelfContact, NewRandomID(), key, value}
 	storeRes := new(StoreResult)
 	
@@ -246,7 +373,6 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 		return &CommandFailed{
 		"Unable to ping " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
 	}
-	
 	err = client.Call("KademliaRPC.Store", storeReq, &storeRes)
 	defer func() {
 		client.Close()
@@ -259,7 +385,6 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 	if storeReq.MsgID.Equals(storeRes.MsgID) {
 		k.RTManagerChan <- *contact
 	}
-	
 	return nil	
 }
 
@@ -292,23 +417,52 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 	if req.MsgID.Equals(res.MsgID) {
 		k.RTManagerChan <- *contact
 	}
-	
 	return res.Nodes, nil
 }
 
 func (k *Kademlia) DoFindValue(contact *Contact,
 	searchKey ID) (value []byte, contacts []Contact, err error) {
 	// TODO: Implement
-	return nil, nil, &CommandFailed{"Not implemented"}
+	req := FindValueRequest{k.SelfContact, NewRandomID(), searchKey}
+	res := new(FindValueResult)
+
+	portStr := strconv.Itoa(int (contact.Port))
+	firstPeerStr := contact.Host.String()+ ":" + portStr
+	
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+
+	if err != nil {
+		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
+		//log.Fatal("dialing:", err)
+		return nil, nil, &CommandFailed{
+		"Unable to FindValue " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
+	}
+	
+	err = client.Call("KademliaRPC.FindValue", req, &res)
+	defer func() {
+		client.Close()
+	} ()
+
+
+	k.RTManagerChan <- *contact
+	if !res.MsgID.Equals(req.MsgID) {
+		return nil, nil, &CommandFailed{"Not implemented"}			
+	}
+
+	value = res.Value
+	contacts = res.Nodes
+	err = res.Err
+
+	return 
 }
 
 func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 	// TODO: Implement
 	
-	// !! TODO: this is not thread safe implmentation
 	if val, ok := k.DataStore[searchKey]; ok {
 		return val, nil
-	} 
+	}
+
 	return []byte(""), &CommandFailed{"Value not exists"}
 }
 
