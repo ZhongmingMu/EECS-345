@@ -18,33 +18,37 @@ const (
 	k     = 20
 )
 
-
+//key-value struct
 type KVpair struct {
 	key 	ID
 	value	[]byte
 }
 
+//findNode request struct
 type FindBucketType struct {
 	reschan		chan []Contact
 	nodeid 		ID
 }
 
-
+//Contactfind Result struct
 type ContactErr struct {
 	contact *Contact
 	err     error
 }
 
+//ContactFind request struct
 type FindContactType struct {
 	reschan 	chan ContactErr
 	nodeid 		ID
 }
 
+//Valuefind result struct
 type ValueRes struct {
 	err		error
 	value 	[]byte
 }
 
+//ValueFind request struct
 type FindValueType struct {
 	reschan		chan ValueRes
 	searchkey    ID
@@ -55,16 +59,14 @@ type Kademlia struct {
 	NodeID      	ID
 	SelfContact 	Contact
 	
-	RouteTable  	[]K_Buckets			// 0 based 
-	DataStore		map[ID][]byte
+	RouteTable  	[]K_Buckets						//RTable, k-buckets
+	DataStore		map[ID][]byte					//map store the key-value
 	
-	RTManagerChan   chan Contact
-	DataStoreChan	chan KVpair	
-	SearchKeyChan	chan ID
-
-	NodeFindChan	chan FindBucketType
-	ContactFindChan chan FindContactType
-	ValueFindChan	chan FindValueType
+	RTManagerChan   chan Contact    				//channel to store update RTable request
+	DataStoreChan	chan KVpair						//channel to store store key-value request
+	NodeFindChan	chan FindBucketType				//channel to store find node request
+	ContactFindChan chan FindContactType 			//channel to store find contact request
+	ValueFindChan	chan FindValueType 				//channel to store find value request
 }
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
@@ -72,12 +74,13 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k.NodeID = nodeID
 
 	// TODO: Initialize other state here as you add functionality.
-	// !!!initial 160 lists, go updatethread,initial channel
+	
+	//initial k-buckets
 	k.RouteTable = make([]K_Buckets, b)
 	for i := 0; i < b; i++ {
 		k.RouteTable[i] = *NewKBuckets(20, i)
 	}
-	
+	//initial channels
 	k.RTManagerChan = make(chan Contact)
 	k.DataStoreChan = make(chan KVpair)
 	k.DataStore = make(map[ID][]byte)
@@ -103,7 +106,7 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		log.Fatal("Listen: ", err)
 	}
 	
-	// handle update
+	// start handler 
 	go k.UpdateHandler()
 
 	// Run RPC server forever.
@@ -139,31 +142,32 @@ func (e *ContactNotFoundError) Error() string {
 	return fmt.Sprintf("%x %s", e.id, e.msg)
 }
 
-// find the left's bucket num containing right
+//find the bucket num storing rhs
 func FindBucketNum(lhs ID, rhs ID) int {
 	distance := lhs.Xor(rhs)
 	//fmt.Println(distance.PrefixLen())
 	return b - distance.PrefixLen() - 1
 }
 
-// Update my RouteTable
+// Update  RouteTable(k-buckets)
 func (k *Kademlia) UpdateRouteTable(c *Contact) {
-	num := FindBucketNum(k.NodeID, c.NodeID) 
+	num := FindBucketNum(k.NodeID, c.NodeID) 						//find the bucket num that possible hold c
 	fmt.Printf("%d: insert num: %d \n", k.SelfContact.Port, num)
 
-	l := k.RouteTable[num]								// list should contain c
+	l := k.RouteTable[num]											
 
-	_, erro := k.directFindContact(c.NodeID)
-	if erro == nil{
+	_, erro := k.directFindContact(c.NodeID)  						//find the contact c in this 
+
+	if erro == nil{ 												//if c exist, move it to the tail of bucket
 		l.MoveToTail(c)
-	} else {
-		if !l.CheckFull() {
+	} else { 									
+		if !l.CheckFull() { 									 	//if c do not exist and the list is not full, add it to the tail
 			l.AddTail(c)
 			// fmt.Println(l.bucket.Len())
-		} else {
+		} else { 													//if c do not exist and the list is full
 			head := l.GetHead()
-			_, erro := k.DoPing(head.Host, head.Port)				//erro == nil, still active
-			if erro != nil {
+			_, erro := k.DoPing(head.Host, head.Port)				//try to contact the head node
+			if erro != nil {  										//if head node do not exist, delete it and add the current node to tail
 				l.RemoveHead()
 				l.AddTail(c)
 			}
@@ -171,30 +175,30 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 	}
 }
 
-func (k *Kademlia) UpdateDataStore(p *KVpair)  {
+//update the datamap
+func (k *Kademlia) UpdateDataStore(p *KVpair)  {		
 	k.DataStore[p.key] = p.value
 }
 
-// one thread running Ro..Handler for thread safe
+// Handler aimed to make the whole program thread safe
 func (k *Kademlia) UpdateHandler() {
 	//fmt.Printf("%d: starting UpdateHandler \n", k.SelfContact.Port)
 	for {
 			//fmt.Printf("%d: for \n", k.SelfContact.Port)
 			select {
-				case c := <- k.RTManagerChan:
+				case c := <- k.RTManagerChan:										//handle update k-buckets
 					fmt.Printf("%d: before update RT \n", k.SelfContact.Port)
 					k.UpdateRouteTable(&c)
-				case p := <- k.DataStoreChan:
+				case p := <- k.DataStoreChan:										//handle store date to datamap
 					fmt.Printf("%d: before DataStore \n", k.SelfContact.Port)
-					k.UpdateDataStore(&p)
-				// case key := <- k.SearchKeyChan:	
-				case f := <- k.NodeFindChan:
+					k.UpdateDataStore(&p)	
+				case f := <- k.NodeFindChan: 										//handle node finding
 					fmt.Printf("%d: before FindNode \n", k.SelfContact.Port)
 					k.findCloestNodes(f.nodeid, f.reschan)
-				case cf := <- k.ContactFindChan:
+				case cf := <- k.ContactFindChan:									//handle contact finding
 					fmt.Printf("%d: before findcontact \n", k.SelfContact.Port)
 					k.FindContactHelper(cf.nodeid, cf.reschan)
-				case v := <- k.ValueFindChan:
+				case v := <- k.ValueFindChan:  										//handle value finding
 					fmt.Printf("%d: before findvalue \n", k.SelfContact.Port)
 					val, err := k.LocalFindValue(v.searchkey)
 					v.reschan <- ValueRes{err, val}
@@ -205,15 +209,17 @@ func (k *Kademlia) UpdateHandler() {
 	}
 }
 
+//handle finding nodes func---find k cloest nodes
 func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
-	nodes := ([]Contact{})
+	nodes := ([]Contact{})																				//result list
 	
-	closestnum := FindBucketNum(kk.NodeID, nodeid)
+	closestnum := FindBucketNum(kk.NodeID, nodeid) 														//find bucket num storing nodeid
 	count := 0
 	diff := 1
 
 	fmt.Printf("%d: closetnumber  %d\n", kk.SelfContact.Port, closestnum)
 
+	//add this bucket's nodes to the result list
 	for e := kk.RouteTable[closestnum].bucket.Front(); e != nil; e = e.Next() {
 		fmt.Printf("%d: here count %d\n", kk.SelfContact.Port, count)
 		fmt.Printf("%d: list length %d\n", kk.SelfContact.Port, kk.RouteTable[closestnum].bucket.Len())
@@ -223,7 +229,9 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 		count = count + 1
 	}
 
+	//if the closet bucket has < k nodes, find neigh nodes until find k nodes or find all the buckets
 	for ; count < k; {
+		//find closet - 1 bucket
 		if closestnum - diff >= 0 {
 			for e := kk.RouteTable[closestnum - diff].bucket.Front(); e != nil; e = e.Next() {
 				fmt.Printf("%d: here count %d \n", kk.SelfContact.Port, count)
@@ -238,7 +246,7 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 		if(count >= k - 1) {
 			break
 		}
-		
+		//find closet + 1 bucket
 		if closestnum + diff < b{
 			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
 				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
@@ -253,33 +261,36 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 			break
 		}
 	}
-	reschan <- nodes
+	reschan <- nodes   																					//put the result back to res channel
 }
 
 
+//find contact with nodeID ID
 func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	// TODO: Search through contacts, find specified ID
 	// Find contact with provided ID
-	reschan := make(chan ContactErr)
-	contactfind := FindContactType{reschan, nodeId}
+	reschan := make(chan ContactErr)											//setup a temp channel to store the result
+	contactfind := FindContactType{reschan, nodeId} 							
 	// fmt.Printf("%d: before push to findchan \n", k.SelfContact.Port)
-	k.ContactFindChan <- contactfind
+	k.ContactFindChan <- contactfind 											//put the finding contact request to channel to find thread safely
 	// fmt.Printf("%d: after push to findchan \n", k.SelfContact.Port)
-	res := <- contactfind.reschan
+	res := <- contactfind.reschan												//extract back the results
 	// fmt.Printf("%d:after get from findchan \n", k.SelfContact.Port)
-	return res.contact, res.err
+	return res.contact, res.err    												
 }
 
+
+// handle contact finding request func
 func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
-	if nodeId == k.SelfContact.NodeID {
+	if nodeId == k.SelfContact.NodeID { 												//if finding itself, directly return 
 		reschan <- ContactErr{&k.SelfContact, nil}
 		return
 	} else {
-		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
+		num := FindBucketNum(k.NodeID, nodeId)											//find the closet bucket of the comtact
 		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
 		l := k.RouteTable[num].bucket
 		//fmt.Println(l.Len())
-		for e := l.Front(); e != nil; e = e.Next() {
+		for e := l.Front(); e != nil; e = e.Next() { 									//traverse the buckets to find the contact
 			if e.Value.(* Contact).NodeID.Equals(nodeId) {
 				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
 				reschan <- ContactErr{e.Value.(* Contact), nil}
@@ -287,15 +298,15 @@ func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
 			}
 		}
 	}
-	reschan <- ContactErr{nil, &ContactNotFoundError{nodeId, "Not found"}}
+	reschan <- ContactErr{nil, &ContactNotFoundError{nodeId, "Not found"}} 			  	//do not find the contact, return ERR
 }
 
-// only used by functions in Updatehandler
+// Direct find contact without handler
 func (k *Kademlia) directFindContact(nodeId ID)(*Contact, error) {
 	if nodeId == k.SelfContact.NodeID {
 		return &k.SelfContact, nil
 	} else {
-		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
+		num := FindBucketNum(k.NodeID, nodeId)			
 		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
 		l := k.RouteTable[num].bucket
 		// fmt.Println(l.Len())
@@ -319,14 +330,14 @@ func (e *CommandFailed) Error() string {
 
 func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 	// TODO: Implement
-	ping := PingMessage{k.SelfContact, NewRandomID()}
-	pong := new(PongMessage)
+	ping := PingMessage{k.SelfContact, NewRandomID()}  													//setup PING msg
+	pong := new(PongMessage) 																			//setup PONG msg
 	
 	//client, err := rpc.DialHTTPPath("tcp", host.String() + ":" + strconv.Itoa(int (port)),
 	//	                 rpc.DefaultRPCPath + strconv.Itoa(int (port)))
 	firstPeerStr := host.String()+ ":" + strconv.Itoa(int (port))
 	//client, err := rpc.DialHTTP("tcp", firstPeerStr)
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + strconv.Itoa(int(port)))
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + strconv.Itoa(int(port)))  // Set connection 
 	fmt.Printf("%d: finish dialhttpath: \n", k.SelfContact.Port)
 	//client, err := rpc.DialHTTP("tcp", host.String()+":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
@@ -336,17 +347,17 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 		"Unable to ping " + fmt.Sprintf("%s:%v", host.String(), port)}
 	}
 
-	err = client.Call("KademliaRPC.Ping", ping, &pong)					// call remote server
+	err = client.Call("KademliaRPC.Ping", ping, &pong)													//RPC Ping function 
     defer func() {
 		client.Close()
 	} ()
 	
 	fmt.Printf("%d: finish remote ping: \n", k.SelfContact.Port)
-	if err == nil {
+	if err == nil { 																							
 		fmt.Printf("%d: call succesfull: \n", k.SelfContact.Port)
 		fmt.Printf("%d: pong sender port: %d \n", k.SelfContact.Port, pong.Sender.Port)
 
-		k.RTManagerChan <- pong.Sender
+		k.RTManagerChan <- pong.Sender 																	//set update k-buckets table request to update request contact
 		//c1 := <- k.RTManagerChan
 		//		fmt.Printf("%d: channel %d \n", k.SelfContact.Port, c1.Port)
 		fmt.Printf("%d: push to channel \n", k.SelfContact.Port)
@@ -360,13 +371,13 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 
 func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 	// TODO: Implement
-	storeReq := StoreRequest{k.SelfContact, NewRandomID(), key, value}
-	storeRes := new(StoreResult)
+	storeReq := StoreRequest{k.SelfContact, NewRandomID(), key, value} 									//Set Store Request Msg
+	storeRes := new(StoreResult) 																		//setup Result
 	
 	portStr := strconv.Itoa(int (contact.Port))
 	firstPeerStr := contact.Host.String()+ ":" + portStr
 	
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)                  //set the connection 
 
 	if err != nil {
 		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
@@ -374,7 +385,7 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 		return &CommandFailed{
 		"Unable to ping " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
 	}
-	err = client.Call("KademliaRPC.Store", storeReq, &storeRes)
+	err = client.Call("KademliaRPC.Store", storeReq, &storeRes)											//RPC Store method
 	defer func() {
 		client.Close()
 	} ()
@@ -383,7 +394,7 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 		return storeRes.Err
 	}
 	
-	if storeReq.MsgID.Equals(storeRes.MsgID) {
+	if storeReq.MsgID.Equals(storeRes.MsgID) { 															//Update the receiver contact 
 		k.RTManagerChan <- *contact
 	}
 	return nil	
@@ -391,13 +402,13 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 
 func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error) {
 	// TODO: Implement
-	req := FindNodeRequest{k.SelfContact, NewRandomID(), searchKey}
-	res := new(FindNodeResult)
+	req := FindNodeRequest{k.SelfContact, NewRandomID(), searchKey}										//set the request Msg
+	res := new(FindNodeResult) 																			//set the Result 
 	
 	portStr := strconv.Itoa(int (contact.Port))
 	firstPeerStr := contact.Host.String()+ ":" + portStr
 	
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr) 					//set the connection 
 
 	if err != nil {
 		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
@@ -406,7 +417,7 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 		"Unable to FindNode " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
 	}
 	
-	err = client.Call("KademliaRPC.FindNode", req, &res)
+	err = client.Call("KademliaRPC.FindNode", req, &res) 												//RPC FindNode func
 	defer func() {
 		client.Close()
 	} ()
@@ -415,7 +426,7 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 		return nil, res.Err
 	}
 	
-	if req.MsgID.Equals(res.MsgID) {
+	if req.MsgID.Equals(res.MsgID) { 																	//set update k-buckets table request to update request contact
 		k.RTManagerChan <- *contact
 	}
 	return res.Nodes, nil
@@ -424,13 +435,13 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 func (k *Kademlia) DoFindValue(contact *Contact,
 	searchKey ID) (value []byte, contacts []Contact, err error) {
 	// TODO: Implement
-	req := FindValueRequest{k.SelfContact, NewRandomID(), searchKey}
-	res := new(FindValueResult)
+	req := FindValueRequest{k.SelfContact, NewRandomID(), searchKey}									//set the request Msg
+	res := new(FindValueResult)																			//set the Result 
 
 	portStr := strconv.Itoa(int (contact.Port))
 	firstPeerStr := contact.Host.String()+ ":" + portStr
 	
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)
+	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath + portStr)					//set the connection 
 
 	if err != nil {
 		fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
@@ -439,13 +450,13 @@ func (k *Kademlia) DoFindValue(contact *Contact,
 		"Unable to FindValue " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
 	}
 	
-	err = client.Call("KademliaRPC.FindValue", req, &res)
+	err = client.Call("KademliaRPC.FindValue", req, &res)												//RPC FindValue func
 	defer func() {
 		client.Close()
 	} ()
 
 
-	k.RTManagerChan <- *contact
+	k.RTManagerChan <- *contact 																		//set update k-buckets table request to update request contact
 	if !res.MsgID.Equals(req.MsgID) {
 		return nil, nil, &CommandFailed{"Not implemented"}			
 	}
@@ -457,6 +468,7 @@ func (k *Kademlia) DoFindValue(contact *Contact,
 	return 
 }
 
+//Local Find value in datamap
 func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 	// TODO: Implement
 	
