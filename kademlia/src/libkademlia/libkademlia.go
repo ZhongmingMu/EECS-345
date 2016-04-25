@@ -235,6 +235,8 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 			}
 		}
 		
+		if(closestnum - )
+		
 		if(count >= k - 1) {
 			break
 		}

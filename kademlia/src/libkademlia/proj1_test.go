@@ -100,6 +100,14 @@ func TestStore(t *testing.T) {
 	return
 }
 
+
+func isSameContact(c1 *Contact, c2 *Contact) bool {
+	if c2.NodeID.Equals(c1.NodeID) && c2.Port == c1.Port && c2.Host.Equal(c1.Host) {
+		return true			
+	}
+	return false	
+}
+
 func TestFindNode(t *testing.T) {
 	// tree structure;
 	// A->B->tree
@@ -114,8 +122,6 @@ func TestFindNode(t *testing.T) {
 	instance2 := NewKademlia("localhost:7895")
 	host2, port2, _ := StringToIpPort("localhost:7895")
 	instance1.DoPing(host2, port2)
-
-//	t.Error("break1")
 	
 	contact2, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
@@ -141,13 +147,60 @@ func TestFindNode(t *testing.T) {
 	if contacts == nil || len(contacts) == 0 {
 		t.Error("No contacts were found")
 	}
+	
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
-	
-	
+		
+	// EXTRACREDIT 
+	// check each one in tree_node is in instance1's contact list
+	for i := 0; i < 10; i++ {	
+		if c, err := instance1.FindContact(tree_node[i].SelfContact.NodeID); 
+		err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+			t.Error("Error finding contact ")
+		}
+	}
 	return
 }
 
+// EXTRACREDIT 
+func testFindNode2(t *testing.T)  {
+	// check when contacts exceeding 20
+	instance1 := NewKademlia("localhost:7894")
+	instance2 := NewKademlia("localhost:7895")
+	host2, port2, _ := StringToIpPort("localhost:7895")
+	instance1.DoPing(host2, port2)
+	
+	key := NewRandomID()
+	
+	minPrefix = instance1.SelfContact.NodeID.PrefixLen(key)
+	
+	tree_node := make([]*Kademlia, 20)
+	for i := 0; i < 20; i++ {
+		address := "localhost:" + strconv.Itoa(7896+i)
+		tree_node[i] = NewKademlia(address)
+		host_number, port_number, _ := StringToIpPort(address)
+		instance2.DoPing(host_number, port_number)
+		if tree_node[i].SelfContact.NodeID.PrefixLen(key) < minPrefix{
+			minPrefix = tree_node[i].SelfContact.NodeID.PrefixLen(key) 	
+		}
+	}
+	
+	contacts, err := instance1.DoFindNode(contact2, key)
+
+	if err != nil {
+		t.Error("Error doing FindNode")
+	}
+
+	if contacts == nil || len(contacts) != 20 {
+		t.Error("Number of Contact is incorrect")
+	}
+	
+	// check if the returned contacts are the same as 
+	for i := 0; i < 20; i++ {
+		if contacts[i].SelfContact.NodeID.PrefixLen(key) 
+	}
+	
+}
 
 
 func TestFindValue(t *testing.T) {
