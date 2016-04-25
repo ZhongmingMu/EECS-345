@@ -95,14 +95,15 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		return nil
 	}
 	
-	fmt.Printf("%d: begin start server", k.SelfContact.Port)
-	s.HandleHTTP(rpc.DefaultRPCPath + port,
-		rpc.DefaultDebugPath + port)
+	fmt.Printf("%d: begin start server\n", k.SelfContact.Port)
+	
+	s.HandleHTTP(rpc.DefaultRPCPath + port, rpc.DefaultDebugPath + port)
 	l, err := net.Listen("tcp", laddr)
 	if err != nil {
 		log.Fatal("Listen: ", err)
 	}
-		// handle update
+	
+	// handle update
 	go k.UpdateHandler()
 
 	// Run RPC server forever.
@@ -121,7 +122,7 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	}
 	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
 	
-	fmt.Printf("%d: create new kademlia node ", k.SelfContact.Port)
+	fmt.Printf("%d: create new kademlia node \n", k.SelfContact.Port)
 	return k
 }
 
@@ -158,7 +159,7 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 	} else {
 		if !l.CheckFull() {
 			l.AddTail(c)
-			fmt.Println(l.bucket.Len())
+			// fmt.Println(l.bucket.Len())
 		} else {
 			head := l.GetHead()
 			_, erro := k.DoPing(head.Host, head.Port)				//erro == nil, still active
@@ -225,7 +226,7 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 	for ; count < k; {
 		if closestnum - diff >= 0 {
 			for e := kk.RouteTable[closestnum - diff].bucket.Front(); e != nil; e = e.Next() {
-				fmt.Printf("%d: here count %d", kk.SelfContact.Port, count)
+				fmt.Printf("%d: here count %d \n", kk.SelfContact.Port, count)
 				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
 				count = count + 1
 				if(count >= k - 1) {
@@ -261,11 +262,11 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 	// Find contact with provided ID
 	reschan := make(chan ContactErr)
 	contactfind := FindContactType{reschan, nodeId}
-	fmt.Printf("%d: before push to findchan \n", k.SelfContact.Port)
+	// fmt.Printf("%d: before push to findchan \n", k.SelfContact.Port)
 	k.ContactFindChan <- contactfind
-	fmt.Printf("%d: after push to findchan \n", k.SelfContact.Port)
+	// fmt.Printf("%d: after push to findchan \n", k.SelfContact.Port)
 	res := <- contactfind.reschan
-	fmt.Printf("%d:after get from findchan \n", k.SelfContact.Port)
+	// fmt.Printf("%d:after get from findchan \n", k.SelfContact.Port)
 	return res.contact, res.err
 }
 
@@ -277,7 +278,7 @@ func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
 		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
 		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
 		l := k.RouteTable[num].bucket
-		fmt.Println(l.Len())
+		//fmt.Println(l.Len())
 		for e := l.Front(); e != nil; e = e.Next() {
 			if e.Value.(* Contact).NodeID.Equals(nodeId) {
 				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
@@ -297,7 +298,7 @@ func (k *Kademlia) directFindContact(nodeId ID)(*Contact, error) {
 		num := FindBucketNum(k.NodeID, nodeId)			//find number of list
 		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
 		l := k.RouteTable[num].bucket
-		fmt.Println(l.Len())
+		// fmt.Println(l.Len())
 		for e := l.Front(); e != nil; e = e.Next() {
 			if e.Value.(* Contact).NodeID.Equals(nodeId) {
 				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
@@ -461,9 +462,10 @@ func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 	
 	if val, ok := k.DataStore[searchKey]; ok {
 		return val, nil
+	} else {
+		return []byte(""), &CommandFailed{"Value not exists"}
 	}
 
-	return []byte(""), &CommandFailed{"Value not exists"}
 }
 
 // For project 2!
