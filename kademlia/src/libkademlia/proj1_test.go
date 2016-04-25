@@ -60,7 +60,6 @@ func TestPing(t *testing.T) {
 		t.Error("Instance 2 should not be able to find a node with the wrong ID")
 	}
 
-
 	if contact1.NodeID != instance1.NodeID {
 		t.Error("Instance 1 ID incorrectly stored in Instance 2's contact list")
 	}
@@ -95,17 +94,16 @@ func TestStore(t *testing.T) {
 	if !bytes.Equal(storedValue, value) {
 		t.Error("Stored value did not match found value")
 	}
-	
 
 	return
 }
 
-
+//Check whether Contact1 and Contact2 are the same Contact
 func isSameContact(c1 *Contact, c2 *Contact) bool {
 	if c2.NodeID.Equals(c1.NodeID) && c2.Port == c1.Port && c2.Host.Equal(c1.Host) {
-		return true			
+		return true
 	}
-	return false	
+	return false
 }
 
 func TestFindNode(t *testing.T) {
@@ -122,7 +120,7 @@ func TestFindNode(t *testing.T) {
 	instance2 := NewKademlia("localhost:7895")
 	host2, port2, _ := StringToIpPort("localhost:7895")
 	instance1.DoPing(host2, port2)
-	
+
 	contact2, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
@@ -147,74 +145,75 @@ func TestFindNode(t *testing.T) {
 	if contacts == nil || len(contacts) == 0 {
 		t.Error("No contacts were found")
 	}
-	
+
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
-		
-	// EXTRACREDIT 
+
+	// EXTRACREDIT
+	//check we found all node correctly when total node smaller than 20
 	// check each one in tree_node is in instance1's contact list
-	for i := 0; i < 10; i++ {	
-		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); 
-		err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+	for i := 0; i < 10; i++ {
+		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
 			t.Error("Error finding contact ")
 		}
 	}
 	return
 }
 
-// EXTRACREDIT 
-func testFindNode2(t *testing.T)  {
-	// check when contacts exceeding 20
+// EXTRACREDIT
+//Check that we found out 20 closest node correctly
+//when total node number bigger than 20
+func testFindNode2(t *testing.T) {
 	instance1 := NewKademlia("localhost:7894")
 	instance2 := NewKademlia("localhost:7895")
-	
+
 	host2, port2, _ := StringToIpPort("localhost:7895")
-	instance1.DoPing(host2, port2)	
+	instance1.DoPing(host2, port2)
 	contact2, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
 		return
 	}
-	
+
 	key := NewRandomID()
-	
-	
+
 	minPrefix := instance1.SelfContact.NodeID.Xor(key).PrefixLen()
-	// 21 total
+	// total number of nodes is 21
 	tree_node := make([]*Kademlia, 21)
 	for i := 0; i < 20; i++ {
 		address := "localhost:" + strconv.Itoa(7896+i)
 		tree_node[i] = NewKademlia(address)
 		host_number, port_number, _ := StringToIpPort(address)
 		instance2.DoPing(host_number, port_number)
-		if prefix := tree_node[i].SelfContact.NodeID.Xor(key).PrefixLen(); prefix < minPrefix{
-			minPrefix = prefix	
+		//get the distance of the farest node
+		if prefix := tree_node[i].SelfContact.NodeID.Xor(key).PrefixLen(); prefix < minPrefix {
+			minPrefix = prefix
 		}
 	}
-	
+
 	tree_node[20] = instance1
-	
+
 	contacts, err := instance1.DoFindNode(contact2, key)
 
 	if err != nil {
 		t.Error("Error doing FindNode")
 	}
-
+	//check we actually find 20 node
 	if contacts == nil || len(contacts) != 20 {
 		t.Error("Number of Contact is incorrect")
 	}
-	
-	// check if the returned contacts are the same as 
-	// check the node in tree_nodes but not in returned contact is the farest one 
+
+	// check the node in tree_nodes but not in returned contact is the farest one
 	for i := 0; i < 21; i++ {
 		found := false
 		for j := 0; j < 20; j++ {
 			if isSameContact(&(tree_node[i].SelfContact), &(contacts[j])) {
 				found = true
-				break			
+				break
 			}
 		}
 		if !found {
+			//check the node we not contact is the farest one
 			if tree_node[i].SelfContact.NodeID.Xor(key).PrefixLen() == minPrefix {
 				break
 			} else {
@@ -223,7 +222,6 @@ func testFindNode2(t *testing.T)  {
 		}
 	}
 }
-
 
 func TestFindValue(t *testing.T) {
 	// tree structure;
@@ -277,9 +275,8 @@ func TestFindValue(t *testing.T) {
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
 	// check the returned contacts are the same as those in tree_node
-	for i := 0; i < 10; i++ {	
-		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); 
-		err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+	for i := 0; i < 10; i++ {
+		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
 			t.Error("Error finding contact ")
 		}
 	}

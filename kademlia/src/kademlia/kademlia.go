@@ -39,8 +39,8 @@ func main() {
 	if len(args) != 2 {
 		log.Fatal("Must be invoked with exactly two arguments!\n")
 	}
-	listenStr := args[0]			// FIRST ADDR
-	firstPeerStr := args[1]			// SECOND CONTACT(PING PONG)
+	listenStr := args[0]    // FIRST ADDR
+	firstPeerStr := args[1] // SECOND CONTACT(PING PONG)
 
 	// Create the Kademlia instance, CREATE THE SERVER AND RUN FOREVER
 	log.Println("Kademlia starting up!")
@@ -54,34 +54,34 @@ func main() {
 	host, port, _ := net.SplitHostPort(firstPeerStr)
 	//fmt.Println(h)
 	/*
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr,
-		rpc.DefaultRPCPath+port)
-	if err != nil {
-		log.Fatal("DialHTTP: ", err)
-	}
-	
-	log.Printf("Pinging initial peer\n")
+		client, err := rpc.DialHTTPPath("tcp", firstPeerStr,
+			rpc.DefaultRPCPath+port)
+		if err != nil {
+			log.Fatal("DialHTTP: ", err)
+		}
 
-	// This is a sample of what an RPC looks like
-	// TODO: Replace this with a call to your completed DoPing!
-	
-	ping := new(libkademlia.PingMessage)
-	ping.MsgID = libkademlia.NewRandomID()
-	var pong libkademlia.PongMessage
-	err = client.Call("KademliaRPC.Ping", ping, &pong)
-	if err != nil {
-		log.Fatal("Call: ", err)
-	}
-	log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
-	log.Printf("pong msgID: %s\n\n", pong.MsgID.AsString())
+		log.Printf("Pinging initial peer\n")
+
+		// This is a sample of what an RPC looks like
+		// TODO: Replace this with a call to your completed DoPing!
+
+		ping := new(libkademlia.PingMessage)
+		ping.MsgID = libkademlia.NewRandomID()
+		var pong libkademlia.PongMessage
+		err = client.Call("KademliaRPC.Ping", ping, &pong)
+		if err != nil {
+			log.Fatal("Call: ", err)
+		}
+		log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
+		log.Printf("pong msgID: %s\n\n", pong.MsgID.AsString())
 	*/
 	p, _ := strconv.Atoi(port)
-  //fmt.Println(net.ParseIP(h))
-  	 
-  	if host == "localhost" {
-		host = "127.0.0.1"		  
-	}  
-	  
+	//fmt.Println(net.ParseIP(h))
+
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	//DoPing after setting new client
 	kadem.DoPing(net.ParseIP(host), uint16(p))
 
 	in := bufio.NewReader(os.Stdin)
