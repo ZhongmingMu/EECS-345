@@ -7,7 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"net/rpc"
+	//"net/rpc"
 	"os"
 	"strconv"
 	"strings"
@@ -51,17 +51,20 @@ func main() {
 	// Confirm our server is up with a PING request and then exit.
 	// Your code should loop forever, reading instructions from stdin and
 	// printing their results to stdout. See README.txt for more details.
-	_, port, err := net.SplitHostPort(firstPeerStr)
+	host, port, _ := net.SplitHostPort(firstPeerStr)
+	//fmt.Println(h)
+	/*
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr,
 		rpc.DefaultRPCPath+port)
 	if err != nil {
 		log.Fatal("DialHTTP: ", err)
 	}
-
+	
 	log.Printf("Pinging initial peer\n")
 
 	// This is a sample of what an RPC looks like
 	// TODO: Replace this with a call to your completed DoPing!
+	
 	ping := new(libkademlia.PingMessage)
 	ping.MsgID = libkademlia.NewRandomID()
 	var pong libkademlia.PongMessage
@@ -71,6 +74,15 @@ func main() {
 	}
 	log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
 	log.Printf("pong msgID: %s\n\n", pong.MsgID.AsString())
+	*/
+	p, _ := strconv.Atoi(port)
+  //fmt.Println(net.ParseIP(h))
+  	 
+  	if host == "localhost" {
+		host = "127.0.0.1"		  
+	}  
+	  
+	kadem.DoPing(net.ParseIP(host), uint16(p))
 
 	in := bufio.NewReader(os.Stdin)
 	quit := false
