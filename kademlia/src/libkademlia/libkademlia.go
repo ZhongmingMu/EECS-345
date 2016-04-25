@@ -146,7 +146,7 @@ func (e *ContactNotFoundError) Error() string {
 func FindBucketNum(lhs ID, rhs ID) int {
 	distance := lhs.Xor(rhs)
 	//fmt.Println(distance.PrefixLen())
-	return b - distance.PrefixLen() - 1
+	return distance.PrefixLen()
 }
 
 // Update  RouteTable(k-buckets)
@@ -230,6 +230,24 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 	}
 
 	//if the closet bucket has < k nodes, find neigh nodes until find k nodes or find all the buckets
+	
+	for ; count < k; {
+		if closestnum + diff < b{
+			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
+				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
+				count = count + 1
+				if(count >= k - 1){
+					break
+				}
+			}
+		}
+		if closestnum + diff >= b {
+			break
+		}
+		diff = diff + 1
+	}
+	
+	diff = 1
 	for ; count < k; {
 		//find closet - 1 bucket
 		if closestnum - diff >= 0 {
@@ -248,24 +266,7 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 		}
 		diff = diff + 1
 	}
-	
-	diff = 1
-	for ; count < k; {
-		if closestnum + diff < b{
-			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
-				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
-				count = count + 1
-				if(count >= k - 1){
-					break
-				}
-			}
-		}
-		if closestnum + diff >= b {
-			break
-		}
-		diff = diff + 1
-	}
-	
+		
 	reschan <- nodes   																					//put the result back to res channel
 }
 

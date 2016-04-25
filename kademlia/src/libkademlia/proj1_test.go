@@ -154,7 +154,7 @@ func TestFindNode(t *testing.T) {
 	// EXTRACREDIT 
 	// check each one in tree_node is in instance1's contact list
 	for i := 0; i < 10; i++ {	
-		if c, err := instance1.FindContact(tree_node[i].SelfContact.NodeID); 
+		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); 
 		err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
 			t.Error("Error finding contact ")
 		}
@@ -167,23 +167,32 @@ func testFindNode2(t *testing.T)  {
 	// check when contacts exceeding 20
 	instance1 := NewKademlia("localhost:7894")
 	instance2 := NewKademlia("localhost:7895")
+	
 	host2, port2, _ := StringToIpPort("localhost:7895")
-	instance1.DoPing(host2, port2)
+	instance1.DoPing(host2, port2)	
+	contact2, err := instance1.FindContact(instance2.NodeID)
+	if err != nil {
+		t.Error("Instance 2's contact not found in Instance 1's contact list")
+		return
+	}
 	
 	key := NewRandomID()
 	
-	minPrefix = instance1.SelfContact.NodeID.PrefixLen(key)
+	
+	minPrefix := instance1.SelfContact.NodeID.Xor(key).PrefixLen()
+	// 21 total
 	tree_node := make([]*Kademlia, 21)
 	for i := 0; i < 20; i++ {
 		address := "localhost:" + strconv.Itoa(7896+i)
 		tree_node[i] = NewKademlia(address)
 		host_number, port_number, _ := StringToIpPort(address)
 		instance2.DoPing(host_number, port_number)
-		if tree_node[i].SelfContact.NodeID.PrefixLen(key) < minPrefix{
-			minPrefix = tree_node[i].SelfContact.NodeID.PrefixLen(key) 	
+		if prefix := tree_node[i].SelfContact.NodeID.Xor(key).PrefixLen(); prefix < minPrefix{
+			minPrefix = prefix	
 		}
 	}
-	tree_node[20] = &instance1
+	
+	tree_node[20] = instance1
 	
 	contacts, err := instance1.DoFindNode(contact2, key)
 
@@ -196,24 +205,23 @@ func testFindNode2(t *testing.T)  {
 	}
 	
 	// check if the returned contacts are the same as 
-	
+	// check the node in tree_nodes but not in returned contact is the farest one 
 	for i := 0; i < 21; i++ {
 		found := false
-		for j := 0; j < count; j++ {
-			if isSameContact(tree_node[i].SelfContact, contacts[j]) {
+		for j := 0; j < 20; j++ {
+			if isSameContact(&(tree_node[i].SelfContact), &(contacts[j])) {
 				found = true
 				break			
 			}
 		}
 		if !found {
-			if tree_node[i].SelfContact.NodeID.PrefixLen(key) == minPrefix {
+			if tree_node[i].SelfContact.NodeID.Xor(key).PrefixLen() == minPrefix {
 				break
 			} else {
 				t.Error("Error finding closest nodes")
 			}
 		}
 	}
-	
 }
 
 
@@ -268,5 +276,11 @@ func TestFindValue(t *testing.T) {
 	return
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
-
+	// check the returned contacts are the same as those in tree_node
+	for i := 0; i < 10; i++ {	
+		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); 
+		err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+			t.Error("Error finding contact ")
+		}
+	}
 }
