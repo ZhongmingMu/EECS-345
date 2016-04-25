@@ -242,11 +242,14 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 				}
 			}
 		}
-		
-		if(count >= k - 1) {
+		if closestnum - diff < 0 {
 			break
 		}
-		//find closet + 1 bucket
+		diff = diff + 1
+	}
+	
+	diff = 1
+	for ; count < k; {
 		if closestnum + diff < b{
 			for e := kk.RouteTable[closestnum + diff].bucket.Front(); e != nil; e = e.Next() {
 				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))	
@@ -256,11 +259,12 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact){
 				}
 			}
 		}
-		diff = diff + 1
-		if closestnum - diff < 0 && closestnum + diff >= b {
+		if closestnum + diff >= b {
 			break
 		}
+		diff = diff + 1
 	}
+	
 	reschan <- nodes   																					//put the result back to res channel
 }
 
