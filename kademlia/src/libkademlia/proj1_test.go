@@ -173,8 +173,7 @@ func testFindNode2(t *testing.T)  {
 	key := NewRandomID()
 	
 	minPrefix = instance1.SelfContact.NodeID.PrefixLen(key)
-	
-	tree_node := make([]*Kademlia, 20)
+	tree_node := make([]*Kademlia, 21)
 	for i := 0; i < 20; i++ {
 		address := "localhost:" + strconv.Itoa(7896+i)
 		tree_node[i] = NewKademlia(address)
@@ -184,6 +183,7 @@ func testFindNode2(t *testing.T)  {
 			minPrefix = tree_node[i].SelfContact.NodeID.PrefixLen(key) 	
 		}
 	}
+	tree_node[20] = &instance1
 	
 	contacts, err := instance1.DoFindNode(contact2, key)
 
@@ -196,8 +196,22 @@ func testFindNode2(t *testing.T)  {
 	}
 	
 	// check if the returned contacts are the same as 
-	for i := 0; i < 20; i++ {
-		if contacts[i].SelfContact.NodeID.PrefixLen(key) 
+	
+	for i := 0; i < 21; i++ {
+		found := false
+		for j := 0; j < count; j++ {
+			if isSameContact(tree_node[i].SelfContact, contacts[j]) {
+				found = true
+				break			
+			}
+		}
+		if !found {
+			if tree_node[i].SelfContact.NodeID.PrefixLen(key) == minPrefix {
+				break
+			} else {
+				t.Error("Error finding closest nodes")
+			}
+		}
 	}
 	
 }
