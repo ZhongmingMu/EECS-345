@@ -51,7 +51,7 @@ func main() {
 	// Confirm our server is up with a PING request and then exit.
 	// Your code should loop forever, reading instructions from stdin and
 	// printing their results to stdout. See README.txt for more details.
-	host, port, _ := net.SplitHostPort(firstPeerStr)
+	// host, port, _ := net.SplitHostPort(firstPeerStr)
 	//fmt.Println(h)
 	/*
 		client, err := rpc.DialHTTPPath("tcp", firstPeerStr,
@@ -75,14 +75,11 @@ func main() {
 		log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
 		log.Printf("pong msgID: %s\n\n", pong.MsgID.AsString())
 	*/
-	p, _ := strconv.Atoi(port)
-	//fmt.Println(net.ParseIP(h))
-
-	if host == "localhost" {
-		host = "127.0.0.1"
-	}
-	//DoPing after setting new client
-	kadem.DoPing(net.ParseIP(host), uint16(p))
+	
+	// DoPing after setting new client
+	// kadem.DoPing(net.ParseIP(host), uint16(p))
+	log.Printf("Pinging initial peer\n")
+	executeLine(kadem, "ping " + firstPeerStr)
 
 	in := bufio.NewReader(os.Stdin)
 	quit := false

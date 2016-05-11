@@ -286,27 +286,6 @@ func (k *Kademlia) FindContact(nodeId ID) (*Contact, error) {
 }
 
 
-// handle contact finding request func
-func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
-	if nodeId == k.SelfContact.NodeID { 												//if finding itself, directly return 
-		reschan <- ContactErr{&k.SelfContact, nil}
-		return
-	} else {
-		num := FindBucketNum(k.NodeID, nodeId)											//find the closet bucket of the comtact
-		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
-		l := k.RouteTable[num].bucket
-		//fmt.Println(l.Len())
-		for e := l.Front(); e != nil; e = e.Next() { 									//traverse the buckets to find the contact
-			if e.Value.(* Contact).NodeID.Equals(nodeId) {
-				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
-				reschan <- ContactErr{e.Value.(* Contact), nil}
-				return
-			}
-		}
-	}
-	reschan <- ContactErr{nil, &ContactNotFoundError{nodeId, "Not found"}} 			  	//do not find the contact, return ERR
-}
-
 // Direct find contact without handler
 func (k *Kademlia) directFindContact(nodeId ID)(*Contact, error) {
 	if nodeId == k.SelfContact.NodeID {
@@ -324,6 +303,31 @@ func (k *Kademlia) directFindContact(nodeId ID)(*Contact, error) {
 		}
 	}
 	return nil, &ContactNotFoundError{nodeId, "Not found"}
+}
+
+// handle contact finding request func
+func (k *Kademlia) FindContactHelper(nodeId ID, reschan chan ContactErr) {
+	/*
+	if nodeId == k.SelfContact.NodeID { 												//if finding itself, directly return 
+		reschan <- ContactErr{&k.SelfContact, nil}
+		return
+	} else {
+		num := FindBucketNum(k.NodeID, nodeId)											//find the closet bucket of the comtact
+		fmt.Printf("%d: find num: %d\n", k.SelfContact.Port, num)
+		l := k.RouteTable[num].bucket
+		//fmt.Println(l.Len())
+		for e := l.Front(); e != nil; e = e.Next() { 									//traverse the buckets to find the contact
+			if e.Value.(* Contact).NodeID.Equals(nodeId) {
+				fmt.Printf("%d: successful find contact 2: \n", k.SelfContact.Port)
+				reschan <- ContactErr{e.Value.(* Contact), nil}
+				return
+			}
+		}
+	}
+	reschan <- ContactErr{nil, &ContactNotFoundError{nodeId, "Not found"}} 			  	//do not find the contact, return ERR
+	*/
+	c, err := k.directFindContact(nodeId)
+	reschan <- ContactErr{c, err}
 }
 
 type CommandFailed struct {
