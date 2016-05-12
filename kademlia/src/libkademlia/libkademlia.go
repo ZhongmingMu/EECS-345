@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/rpc"
 	"strconv"
+	"container/list"
+//	"math"
 )
 
 const (
@@ -490,10 +492,159 @@ func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 
 }
 
+
+type shortList struct {
+	visted map[ID]bool
+	pool *list.List
+	closetNode Contact
+	result []Contact
+}
+
+type singleResult struct {
+	contacts []Contact // rpc find_node call results 
+	self Contact          // who sent this result
+	err error
+}
+
+func (sl *shortList)initShortList(k *Kademlia)  {
+	sl.visted = make(map[ID]bool)
+	sl.pool = list.New()
+	sl.closetNode = *(new(Contact))
+	sl.result = make([]Contact, 0, 20)
+	
+}
+
+func rpc_search(k *Kademlia, c Contact, target ID, processchan chan singleResult) {
+	sr := *(new(singleResult))
+	result, err := k.DoFindNode(&c, target)
+	sr.err = err
+	sr.contacts = result
+	sr.self = c
+	
+	processchan <- sr
+}
+
+func dealWithSingleResult(myShortList shortList, sr singleResult, target ID, flag *bool) {
+	//myShortList.visted[sr.self.NodeID] = true
+	if sr.err == nil {
+		myShortList.result = append(myShortList.result, sr.self)
+		for i := 0; i < len(sr.contacts); i++ {
+			if _, ok := myShortList.visted[sr.contacts[i].NodeID]; !ok {
+				myShortList.pool.PushFront(sr.contacts[i])
+				if(!(target.Xor(myShortList.closetNode.NodeID).Less(target.Xor(sr.contacts[i].NodeID)))) {
+					myShortList.closetNode = sr.contacts[i]
+					*flag = true;
+				}
+			}
+		}
+		myShortList.result = append(myShortList.result, sr.self)
+	}
+}
+
+func start_update_check_service(target ID, myShortList shortList, processchan chan singleResult,
+	 							poolchan chan []Contact, flagchan chan bool) {
+	
+	for {
+		flag := false
+		for cnt := 0; cnt < alpha; {
+			 para := <- processchan
+			 dealWithSingleResult(myShortList, para, target, &flag)
+			 if(len(myShortList.result) == 20) {
+				 flag = false
+				 break
+			 }
+		}
+		
+		if(!flag) {
+			next_nodes := make([]Contact, 0, alpha)
+			if(myShortList.pool.Len() == 0) {
+				flag = false;
+			} else {
+				currentPoolSize := myShortList.pool.Len()
+				len := alpha
+				if(currentPoolSize < alpha) {
+					len = currentPoolSize
+				}
+				for i:= 0; i < len; i++ {
+					ele := myShortList.pool.Front()
+					next_nodes[i] = *(ele.Value.(*Contact))
+					myShortList.visted[next_nodes[i].NodeID] = true
+					myShortList.pool.Remove(ele)
+				}
+			}
+			poolchan <- next_nodes
+		}
+		
+		flagchan <- flag
+		if flag == false {
+			// we should stop this go routine
+			break
+		}	 
+	}
+	
+}
+
 // For project 2!
 func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
-	return nil, &CommandFailed{"Not implemented"}
+	// init shortlist
+	myShortList := *(new(shortList))
+ 	//channals
+	poolchan := make(chan []Contact)
+	flagchan := make(chan bool)
+	processchan := make(chan singleResult)
+	
+	myShortList.initShortList(k)
+//	myShortList.result[9]
+	// find local node
+	reschan := make(chan []Contact)
+	fbt := FindBucketType{reschan, id}
+	k.NodeFindChan <- fbt
+	contacts := <- reschan
+	
+	if len(contacts) < 1 {
+		// ?????
+		return nil, &CommandFailed{"node not found"}
+	}
+	
+	// add initial
+	myShortList.closetNode = contacts[0]
+	
+	for i := 0; i < len(contacts); i++ {
+		myShortList.pool.PushFront(contacts[i])
+		if(!(id.Xor(myShortList.closetNode.NodeID).Less(id.Xor(contacts[i].NodeID)))) {
+			myShortList.closetNode = contacts[i]
+		}
+	}
+	
+	//service	
+	go start_update_check_service(id, myShortList, processchan, poolchan, flagchan);
+	// --- begin cycles
+	// poolchan = <- contacts[0:alpha]	 
+	//
+	for {
+		flag := true
+		//poll next alpha nodes
+		next_nodes := <- poolchan
+		//alpha go routine
+		for i:= 0; i < len(next_nodes); i++ {
+			go rpc_search(k, next_nodes[i], id, processchan)
+		}
+		//get result judge return 
+		// update flag 
+		flag = <- flagchan
+		if (flag == false) {
+			break;
+		}
+	}
+	
+	// results1 := [len(shortList.result)]Contact
+	// copy(results1[:], shortList.result[:])
+//	shortList.result[0]
+	
+	return myShortList.result, nil
+	// return nil, &CommandFailed{"Not implemented"}
 }
+
 func (k *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 	return nil, &CommandFailed{"Not implemented"}
 }
