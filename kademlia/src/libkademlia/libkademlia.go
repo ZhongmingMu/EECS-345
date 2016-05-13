@@ -678,11 +678,10 @@ func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 		return nil, &CommandFailed{"No Contact are found"}
 	}
 	
-	rcvdContacts := make([]Contact, 0, )
 	for i := 0; i < len(triples); i++ {
-		err := kk.DoStore(triples[i], key, value)
+		err := kk.DoStore(&triples[i], key, value)
 		if err == nil {
-			rcvdContacts = append(recvdContacts, triples[i])
+			rcvdContacts = append(rcvdContacts, triples[i])
 		}
 	}
 	
