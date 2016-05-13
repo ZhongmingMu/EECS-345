@@ -618,7 +618,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	}()
 	contacts := <-reschan
 	if len(contacts) < 1 {
-		return nil, &CommandFailed{"node not found\n"}
+		return nil, &CommandFailed{"No Contact is Found"}
 	}
 
 	myShortList.closetNode = contacts[0]
@@ -665,29 +665,34 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	// results1 := [len(shortList.result)]Contact
 	// copy(results1[:], shortList.result[:])
 	//	shortList.result[0]
-
+	if len(myShortList.result) == 0 {
+		return nil, &CommandFailed{"No Contact is Found"}
+	}
 	return myShortList.result, nil
 	// return nil, &CommandFailed{"Not implemented"}
 }
 
 func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 	rcvdContacts := make([]Contact, 0, k)
-	
+
 	triples, err := kk.DoIterativeFindNode(key)
-	if err != nil {			
-		return nil, &CommandFailed{"No Contact are found"}
+	if err != nil {
+		return nil, &CommandFailed{"No Value is Stored"}
 	}
-	
+
 	for i := 0; i < len(triples); i++ {
 		err := kk.DoStore(&triples[i], key, value)
 		if err == nil {
 			rcvdContacts = append(rcvdContacts, triples[i])
 		}
 	}
-	
+
+	if len(rcvdContacts) == 0 {
+		return nil, &CommandFailed{"No Value is Stored"}
+	}
 	return rcvdContacts, nil
-	
 }
+
 func (k *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 	return nil, &CommandFailed{"Not implemented"}
 }
