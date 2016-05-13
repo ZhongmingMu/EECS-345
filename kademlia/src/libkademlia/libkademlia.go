@@ -489,6 +489,7 @@ func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 
 }
 
+// For project 2!
 type shortList struct {
 	visted     map[ID]bool
 	pool       *list.List
@@ -509,12 +510,18 @@ type returnType struct {
 	resultList shortList
 }
 
-func (sl *shortList) initShortList(k *Kademlia) {
+func min(lhs int, rhs int) bool {
+	if lhs < rhs {
+		return lhs
+	}
+	return rhs
+}
+
+func (sl *shortList) initShortList() {
 	sl.visted = make(map[ID]bool)
 	sl.pool = list.New()
 	sl.closetNode = *(new(Contact))
 	sl.result = make([]Contact, 0, 20)
-
 }
 
 func rpc_search(k *Kademlia, c Contact, target ID, processchan chan singleResult, last_identi bool) {
@@ -599,7 +606,6 @@ func (k *Kademlia) start_update_check_service(target ID, myShortList shortList, 
 	}
 }
 
-// For project 2!
 func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	// init shortlist
 	myShortList := *(new(shortList))
@@ -608,7 +614,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	flagchan := make(chan returnType)
 	processchan := make(chan singleResult)
 
-	myShortList.initShortList(k)
+	myShortList.initShortList()
 	//	myShortList.result[9]
 	// find local node
 	reschan := make(chan []Contact)
@@ -630,7 +636,8 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	}
 	// add initial search nodes to pool channals
 	firstpoll := make([]Contact, 0, 20)
-	len1 := int(math.Min(float64(alpha), float64(len(contacts))))
+	len1 := min(alpha, len(contacts))
+	 // nt(math.Min(float64(alpha), float64(len(contacts))))
 	for i := 0; i < len1; i++ {
 		firstpoll = append(firstpoll, contacts[i])
 	}
@@ -693,7 +700,132 @@ func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 	return rcvdContacts, nil
 }
 
-func (k *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
+
+
+type valShortList struct {
+	visted          map[ID]bool
+	pool             *list.List
+	closetNode  Contact
+	active           []Contact
+	hasVal         []Contact
+	val 	        []byte
+}
+
+type rpcFindValRes struct {
+	self	   ID
+	value 	   []byte
+	contacts  []Contact
+	err           error
+}
+
+func (sl *valShortList) initValShortList(k *Kademlia) {
+	sl.visted = make(map[ID]bool)
+	sl.pool = list.New()
+	sl.closetNode = k.SelfContact
+	sl.active = make([]Contact, 0, 20)
+	sl.hasVal = make([]Contact, 0, 20)
+	sl.val = nil
+}
+
+// func (kk *Kademlia)rpcSearchVal(contact *Contact, key ID,
+// 				     rpcFindValResChan chan rpcFindValRes) {
+// 	val, contacts, err := kk.DoFindValue(contact, key)
+// 	result := rpcFindValRes{val, contacts, err}
+// 	rpcFindValResChan <- result
+
+// }
+
+func getContactsFromPool(reqPoolChan chan bool,
+			      resPoolChan chan []Contact) (res []Contact) {
+	reqPoolChan <- true
+	res <- resPoolChan
+	return
+}
+
+func  dealWithFindValRes(sl *valShortList, res rpcFindValRes) (isChanged bool){
+	if res.err == nil || res.val != nil {
+		sl.val = res.val
+		isChanged = false
+	} else {
+		//
+
+	}
+	return
+}
+
+func valShortListManager(sl *valShortList, reqPoolChan chan bool, resPoolChan chan []Contact,
+			      isChangedChan chan bool, rpcResChan chan rpcFindValRes, mgrCloseChan chan bool) {
+	for {
+		select {
+			// get from shortlist pool
+			case <-reqPoolChan:
+				length :=  min(sl.pool.Len(), alpha)
+				contacts := make([]Contact, length, length)
+				for i :=0; i < length; i++ {
+					ele := myShortList.pool.Front()
+					contacts[i] = ele.Value.(Contact)
+					sl.Remove(ele)
+				}
+				resPoolChan <- contacts
+			// dealwith rpcfindvalue_result
+			case res <- rpcResChan:
+				isChanged := dealWithFindValRes(sl, res)
+				isChangedChan <- isChanged
+				// isChangedChan <- balalala
+			// terminate this goroutine
+			case <-mgrCloseChan:
+				return
+			default:
+				continue
+		}
+	}
+}
+
+func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
+	myShortList := new(valShortList)
+	myShortList.initValShortList(kk)
+	value, err = kk.LocalFindValue(key)
+	if err == nil {
+		return
+	}
+
+	localreschan := make(chan []Contact)
+	fbt := FindBucketType{localreschan, id}
+	go func() {
+		k.NodeFindChan <- fbt
+	}()
+	contacts := <-localreschan
+
+	// valshortlist manager
+	var (
+		// init my channel
+		rpcFindValResChan = make(chan rpcFindValRes)
+		mgrCloseChan = make(chan bool)
+		reqPoolChan = make(chan bool)
+		resPoolChan = make(chan []Contact)
+	)
+
+	go valShortListManager(myShortList, reqPoolChan, resPoolChan, rpcFindValResChan)
+	defer func() {
+		mgrCloseChan <- true
+	} ()
+
+	for cs := contacts[0:min(len(contacts), alpha)], running:= true; running; cs = getContactsFromPool(reqPoolChan, resPoolChan) {
+		for i := 0; i < len(cs); i++ {
+			// rpcFindVal routine
+			go func() {
+				val, contacts, err := kk.DoFindValue(&cs[i], key)
+				result := rpcFindValRes{val, contacts, err}
+				rpcFindValResChan <- result
+			}
+		}
+
+		for  running = false, i := 0; i < len(cs); i++ {
+			// wait for len(cs) goroutine return
+			running = <-isChangedChan
+		}
+	}
+
 	return nil, &CommandFailed{"Not implemented"}
 }
 
