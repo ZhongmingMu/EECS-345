@@ -670,22 +670,24 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	// return nil, &CommandFailed{"Not implemented"}
 }
 
-func (k *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
-	contacts, err := k.DoIterativeFindNode(key)
-	if err != nil {
-		return nil, &CommandFailed{"Node not found"}
+func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
+	rcvdContacts := make([]Contact, 0, k)
+	
+	triples, err := kk.DoIterativeFindNode(key)
+	if err != nil {			
+		return nil, &CommandFailed{"No Contact are found"}
 	}
-	results := make([]Contact, 0, 20)
-
-	j := 0
-	for i := 0; i < len(contacts); i++ {
-		erro := k.DoStore(&k.SelfContact, contacts[i].NodeID, value)
-		if erro == nil {
-			results[j] = contacts[i]
-			j++
+	
+	rcvdContacts := make([]Contact, 0, )
+	for i := 0; i < len(triples); i++ {
+		err := kk.DoStore(triples[i], key, value)
+		if err == nil {
+			rcvdContacts = append(recvdContacts, triples[i])
 		}
 	}
-	return results, nil
+	
+	return rcvdContacts, nil
+	
 }
 func (k *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 	return nil, &CommandFailed{"Not implemented"}
