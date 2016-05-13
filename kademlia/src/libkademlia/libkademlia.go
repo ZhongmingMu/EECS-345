@@ -7,7 +7,6 @@ import (
 	"container/list"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -467,7 +466,7 @@ func (k *Kademlia) DoFindValue(contact *Contact,
 
 	k.RTManagerChan <- *contact //set update k-buckets table request to update request contact
 	if !res.MsgID.Equals(req.MsgID) {
-		return nil, nil, &CommandFailed{"Not implemented"}
+		return nil, nil, &CommandFailed{"message ID not match"}
 	}
 
 	value = res.Value
@@ -510,7 +509,7 @@ type returnType struct {
 	resultList shortList
 }
 
-func min(lhs int, rhs int) bool {
+func min(lhs int, rhs int) int {
 	if lhs < rhs {
 		return lhs
 	}
@@ -705,50 +704,57 @@ func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 type valShortList struct {
 	visted          map[ID]bool
 	pool             *list.List
-	closetNode  Contact
-	active           []Contact
-	hasVal         []Contact
+	closetNode  	Contact
+	// active           []Contact
+	nodesToSto 		[]Contact
+	key				ID
 	val 	        []byte
 }
 
 type rpcFindValRes struct {
-	self	   ID
-	value 	   []byte
-	contacts  []Contact
-	err           error
+	self	   	Contact
+	value 	   	[]byte
+	contacts  	[]Contact
+	err         error
 }
 
-func (sl *valShortList) initValShortList(k *Kademlia) {
-	sl.visted = make(map[ID]bool)
-	sl.pool = list.New()
-	sl.closetNode = k.SelfContact
-	sl.active = make([]Contact, 0, 20)
-	sl.hasVal = make([]Contact, 0, 20)
-	sl.val = nil
+func (sl *valShortList) initValShortList(kk *Kademlia, key ID) {
+	sl.visted 	  = make(map[ID]bool)
+	sl.pool 	  = list.New()
+	sl.closetNode = kk.SelfContact
+	// sl.active = make([]Contact, 0, 20)
+	sl.nodesToSto = make([]Contact, 0, k)
+	sl.key 		  = key
+	sl.val 		  = nil
 }
-
-// func (kk *Kademlia)rpcSearchVal(contact *Contact, key ID,
-// 				     rpcFindValResChan chan rpcFindValRes) {
-// 	val, contacts, err := kk.DoFindValue(contact, key)
-// 	result := rpcFindValRes{val, contacts, err}
-// 	rpcFindValResChan <- result
-
-// }
 
 func getContactsFromPool(reqPoolChan chan bool,
 			      resPoolChan chan []Contact) (res []Contact) {
 	reqPoolChan <- true
-	res <- resPoolChan
+	res = <-resPoolChan
 	return
 }
 
-func  dealWithFindValRes(sl *valShortList, res rpcFindValRes) (isChanged bool){
-	if res.err == nil || res.val != nil {
-		sl.val = res.val
-		isChanged = false
-	} else {
-		//
+func  dealWithFindValRes(sl *valShortList, res rpcFindValRes) (isChanged bool) {
+	// mark visited node
+	sl.visted[res.self.NodeID] = true
+	isChanged = false
+	sl.val = res.value
+	if res.err == nil && res.value == nil {
+		// contacted with node but find no value
+		sl.nodesToSto = append(sl.nodesToSto, res.self)
+		for i := 0; i < len(res.contacts); i++ {
+			if _, ok := sl.visted[res.contacts[i].NodeID]; !ok {
+				// not contacted before
+				sl.pool.PushFront(res.contacts[i])
+				if (sl.key.Xor(res.contacts[i].NodeID).Less(sl.key.Xor(sl.closetNode.NodeID))) {
+					// find a node with smaller distance to the key you want
+					sl.closetNode = res.contacts[i]
+					isChanged = true	
+				}
 
+			}	
+		}
 	}
 	return
 }
@@ -762,13 +768,13 @@ func valShortListManager(sl *valShortList, reqPoolChan chan bool, resPoolChan ch
 				length :=  min(sl.pool.Len(), alpha)
 				contacts := make([]Contact, length, length)
 				for i :=0; i < length; i++ {
-					ele := myShortList.pool.Front()
+					ele := sl.pool.Front()
 					contacts[i] = ele.Value.(Contact)
-					sl.Remove(ele)
+					sl.pool.Remove(ele)
 				}
 				resPoolChan <- contacts
 			// dealwith rpcfindvalue_result
-			case res <- rpcResChan:
+			case res := <- rpcResChan:
 				isChanged := dealWithFindValRes(sl, res)
 				isChangedChan <- isChanged
 				// isChangedChan <- balalala
@@ -783,50 +789,74 @@ func valShortListManager(sl *valShortList, reqPoolChan chan bool, resPoolChan ch
 
 func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 	myShortList := new(valShortList)
-	myShortList.initValShortList(kk)
+	myShortList.initValShortList(kk, key)
 	value, err = kk.LocalFindValue(key)
 	if err == nil {
+		// already find value in local store
 		return
 	}
 
 	localreschan := make(chan []Contact)
-	fbt := FindBucketType{localreschan, id}
-	go func() {
-		k.NodeFindChan <- fbt
-	}()
+	fbt := FindBucketType{localreschan, key}
+	// go func() {
+	// 	k.NodeFindChan <- fbt
+	// }()
+	kk.NodeFindChan <- fbt
 	contacts := <-localreschan
 
 	// valshortlist manager
 	var (
 		// init my channel
 		rpcFindValResChan = make(chan rpcFindValRes)
-		mgrCloseChan = make(chan bool)
-		reqPoolChan = make(chan bool)
-		resPoolChan = make(chan []Contact)
+		mgrCloseChan 	  = make(chan bool)
+		reqPoolChan 	  = make(chan bool)
+		resPoolChan 	  = make(chan []Contact)
+		isChangedChan 	  = make(chan bool)
 	)
 
-	go valShortListManager(myShortList, reqPoolChan, resPoolChan, rpcFindValResChan)
+	go valShortListManager(myShortList, reqPoolChan, 
+						   resPoolChan, isChangedChan, 
+						   rpcFindValResChan, mgrCloseChan)
 	defer func() {
+		// close the valshortlistmanager when close this funciton return
 		mgrCloseChan <- true
 	} ()
 
-	for cs := contacts[0:min(len(contacts), alpha)], running:= true; running; cs = getContactsFromPool(reqPoolChan, resPoolChan) {
+	cs := contacts[:min(len(contacts), alpha)]
+	for running:= true; running; cs = getContactsFromPool(reqPoolChan, resPoolChan) {
 		for i := 0; i < len(cs); i++ {
-			// rpcFindVal routine
+			// launch rpcFindVal routines
 			go func() {
 				val, contacts, err := kk.DoFindValue(&cs[i], key)
-				result := rpcFindValRes{val, contacts, err}
+				result := rpcFindValRes{cs[i], val, contacts, err}
 				rpcFindValResChan <- result
-			}
+			} ()
 		}
-
-		for  running = false, i := 0; i < len(cs); i++ {
+		
+		running = false
+		for i := 0; i < len(cs); i++ {
 			// wait for len(cs) goroutine return
 			running = <-isChangedChan
 		}
 	}
+	
+	if myShortList.val != nil {
+		// store value in closest contact
+		length := len(myShortList.nodesToSto)
+		if length > 0 {
+			nodeToSto := myShortList.nodesToSto[0]
+			for i := 1; i < length; i++ {
+				if key.Xor(myShortList.nodesToSto[i].NodeID).Less(key.Xor(nodeToSto.NodeID)) {
+					nodeToSto = myShortList.nodesToSto[i]
+				}
+			}
+			kk.DoStore(&nodeToSto, key, myShortList.val)
+		}
 
-	return nil, &CommandFailed{"Not implemented"}
+		return myShortList.val, nil
+	}
+	
+	return nil, &CommandFailed{"value not found"}
 }
 
 // For project 3!
