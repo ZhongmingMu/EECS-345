@@ -1,7 +1,7 @@
 package libkademlia
 
 import (
-	"bytes"
+	//	"bytes"
 	"net"
 	"strconv"
 	"testing"
@@ -29,6 +29,7 @@ func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
 	return
 }
 
+/*
 func TestPing(t *testing.T) {
 	instance1 := NewKademlia("localhost:7890")
 	instance2 := NewKademlia("localhost:7891")
@@ -105,7 +106,7 @@ func isSameContact(c1 *Contact, c2 *Contact) bool {
 	}
 	return false
 }
-
+*/
 func TestFindNode(t *testing.T) {
 	// tree structure;
 	// A->B->tree
@@ -121,7 +122,7 @@ func TestFindNode(t *testing.T) {
 	host2, port2, _ := StringToIpPort("localhost:7895")
 	instance1.DoPing(host2, port2)
 
-	contact2, err := instance1.FindContact(instance2.NodeID)
+	_, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
 		return
@@ -136,7 +137,7 @@ func TestFindNode(t *testing.T) {
 	}
 
 	key := NewRandomID()
-	contacts, err := instance1.DoFindNode(contact2, key)
+	contacts, err := instance1.DoIterativeFindNode(key)
 
 	if err != nil {
 		t.Error("Error doing FindNode")
@@ -152,14 +153,17 @@ func TestFindNode(t *testing.T) {
 	// EXTRACREDIT
 	//check we found all node correctly when total node smaller than 20
 	// check each one in tree_node is in instance1's contact list
-	for i := 0; i < 10; i++ {
-		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
-			t.Error("Error finding contact ")
+	/*
+		for i := 0; i < 10; i++ {
+			if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+				t.Error("Error finding contact ")
+			}
 		}
-	}
-	return
+		return
+	*/
 }
 
+/*
 // EXTRACREDIT
 //Check that we found out 20 closest node correctly
 //when total node number bigger than 20
@@ -226,13 +230,13 @@ func testFindNode2(t *testing.T) {
 func TestFindValue(t *testing.T) {
 	// tree structure;
 	// A->B->tree
-	/*
+
 	         C
 	      /
 	  A-B -- D
 	      \
 	         E
-	*/
+
 	instance1 := NewKademlia("localhost:7926")
 	instance2 := NewKademlia("localhost:7927")
 	host2, port2, _ := StringToIpPort("localhost:7927")
@@ -281,3 +285,4 @@ func TestFindValue(t *testing.T) {
 		}
 	}
 }
+*/
