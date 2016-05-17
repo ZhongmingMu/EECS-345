@@ -495,7 +495,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	flagchan := make(chan bool)
 	processchan := make(chan singleResult)
 	reschan := make(chan []Contact)
-	myShortList.initShortList()											//initial the shortList
+	myShortList.initShortList() //initial the shortList
 	//local find ( first find)
 	fbt := FindBucketType{reschan, id}
 	go func() {
@@ -538,11 +538,11 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	//start the iterative find
 	for {
 		flag := true
-		next_nodes := <-poolchan															//get the nodes from where to find
+		next_nodes := <-poolchan //get the nodes from where to find
 		for i := 0; i < len(next_nodes); i++ {
 			go rpc_search(k, next_nodes[i], id, processchan, len(next_nodes))
 		}
-		flag = <-flagchan																			//extract the result of one cycle
+		flag = <-flagchan //extract the result of one cycle
 		if flag == false {
 			break
 		}
@@ -551,7 +551,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	if len(myShortList.result) < 20 && myShortList.pool.Len() > 0 {
 		for e := myShortList.pool.Front(); e != nil; e = e.Next() {
 			c := e.Value.(Contact)
-			if _, ok := myShortList.visted[c.NodeID]; !ok {	//if node is active and has not been visted, add them to result
+			if _, ok := myShortList.visted[c.NodeID]; !ok { //if node is active and has not been visted, add them to result
 				_, err := k.DoFindNode(&c, id)
 				if err == nil {
 					myShortList.result = append(myShortList.result, c)

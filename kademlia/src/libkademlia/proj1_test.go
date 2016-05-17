@@ -1,35 +1,34 @@
 package libkademlia
 
 import (
-	//	"bytes"
-	"fmt"
-	"net"
+	"bytes"
+	//"fmt"
+	//"net"
 	"strconv"
 	"testing"
-	"time"
+	//"time"
 )
 
-func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
-	hostString, portString, err := net.SplitHostPort(laddr)
-	if err != nil {
-		return
-	}
-	ipStr, err := net.LookupHost(hostString)
-	if err != nil {
-		return
-	}
-	for i := 0; i < len(ipStr); i++ {
-		ip = net.ParseIP(ipStr[i])
-		if ip.To4() != nil {
-			break
-		}
-	}
-	portInt, err := strconv.Atoi(portString)
-	port = uint16(portInt)
-	return
-}
+// func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
+// 	hostString, portString, err := net.SplitHostPort(laddr)
+// 	if err != nil {
+// 		return
+// 	}
+// 	ipStr, err := net.LookupHost(hostString)
+// 	if err != nil {
+// 		return
+// 	}
+// 	for i := 0; i < len(ipStr); i++ {
+// 		ip = net.ParseIP(ipStr[i])
+// 		if ip.To4() != nil {
+// 			break
+// 		}
+// 	}
+// 	portInt, err := strconv.Atoi(portString)
+// 	port = uint16(portInt)
+// 	return
+// }
 
-/*
 func TestPing(t *testing.T) {
 	instance1 := NewKademlia("localhost:7890")
 	instance2 := NewKademlia("localhost:7891")
@@ -106,8 +105,7 @@ func isSameContact(c1 *Contact, c2 *Contact) bool {
 	}
 	return false
 }
-*/
-/*
+
 func TestFindNode(t *testing.T) {
 	// tree structure;
 	// A->B->tree
@@ -117,13 +115,13 @@ func TestFindNode(t *testing.T) {
 	  A-B -- D
 	      \
 	         E
-
+	*/
 	instance1 := NewKademlia("localhost:7894")
 	instance2 := NewKademlia("localhost:7895")
 	host2, port2, _ := StringToIpPort("localhost:7895")
 	instance1.DoPing(host2, port2)
 
-	_, err := instance1.FindContact(instance2.NodeID)
+	contact, err := instance1.FindContact(instance2.NodeID)
 	if err != nil {
 		t.Error("Instance 2's contact not found in Instance 1's contact list")
 		return
@@ -137,34 +135,16 @@ func TestFindNode(t *testing.T) {
 		instance2.DoPing(host_number, port_number)
 	}
 
-	tree_node2 := make([]*Kademlia, 20)
-	for j := 20; j < 40; j++ {
-		address := "localhost:" + strconv.Itoa(7896+j)
-		tree_node2[j-20] = NewKademlia(address)
-		host_number, port_number, _ := StringToIpPort(address)
-		for i := 0; i < 20; i++ {
-			tree_node[i].DoPing(host_number, port_number)
-		}
-	}
-	tmp_contact, err := tree_node[3].FindContact(tree_node2[12].NodeID)
-	if err != nil {
-		t.Error("contact not found in Instance 2's contact list")
-		return
-	}
-	value := []byte("Hello world")
-	//key := NewRandomID()
-	tree_node[3].DoStore(tmp_contact, tmp_contact.NodeID, value)
-	result, err := instance1.DoIterativeFindValue(tmp_contact.NodeID)
+	key := NewRandomID()
+	contacts, err := instance1.DoFindNode(contact, key)
 	//fmt.Println(contact)
 	if err != nil {
 		t.Error("Error doing FindNode")
 	}
-	res := string(result[:])
-	fmt.Println(res)
-	// if contacts == nil || len(contacts) == 0 {
-	// 	t.Error("No contacts were found")
-	// }
-	t.Error("Finish")
+
+	if contacts == nil || len(contacts) == 0 {
+		t.Error("No contacts were found")
+	}
 
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
@@ -172,17 +152,16 @@ func TestFindNode(t *testing.T) {
 	// EXTRACREDIT
 	//check we found all node correctly when total node smaller than 20
 	// check each one in tree_node is in instance1's contact list
-	/*
-		for i := 0; i < 10; i++ {
-			if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
-				t.Error("Error finding contact ")
-			}
+
+	for i := 0; i < 10; i++ {
+		if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+			t.Error("Error finding contact ")
 		}
-		return
+	}
+	return
 
 }
-*/
-/*
+
 // EXTRACREDIT
 //Check that we found out 20 closest node correctly
 //when total node number bigger than 20
@@ -249,13 +228,13 @@ func testFindNode2(t *testing.T) {
 func TestFindValue(t *testing.T) {
 	// tree structure;
 	// A->B->tree
-
+	/*
 	         C
 	      /
 	  A-B -- D
 	      \
 	         E
-
+	*/
 	instance1 := NewKademlia("localhost:7926")
 	instance2 := NewKademlia("localhost:7927")
 	host2, port2, _ := StringToIpPort("localhost:7927")
@@ -304,73 +283,20 @@ func TestFindValue(t *testing.T) {
 		}
 	}
 }
-*/
 
+// TODO: Check that the correct contacts were stored
+//       (and no other contacts)
 
-func TestIterativeFindNode(t *testing.T) {
-	// tree structure;
-	// A->B->tree
-	/*
-	         C
-	      /
-	  A-B -- D
-	      \
-	         E
-	*/
-	kNum := 100
-	targetIdx := kNum - 10
-	instance2 := NewKademlia("localhost:7305")
-	host2, port2, _ := StringToIpPort("localhost:7305")
-	//	instance2.DoPing(host2, port2)
-	tree_node := make([]*Kademlia, kNum)
-	//t.Log("Before loop")
-	for i := 0; i < kNum; i++ {
-		address := "localhost:" + strconv.Itoa(7306+i)
-		tree_node[i] = NewKademlia(address)
-		tree_node[i].DoPing(host2, port2)
-		t.Log("ID:" + tree_node[i].SelfContact.NodeID.AsString())
-	}
-	for i := 0; i < kNum; i++ {
-		if i != targetIdx {
-			tree_node[targetIdx].DoPing(tree_node[i].SelfContact.Host, tree_node[i].SelfContact.Port)
+// EXTRACREDIT
+//check we found all node correctly when total node smaller than 20
+// check each one in tree_node is in instance1's contact list
+/*
+		for i := 0; i < 10; i++ {
+			if c, err := instance2.FindContact(tree_node[i].SelfContact.NodeID); err != nil && isSameContact(c, &(tree_node[i].SelfContact)) {
+				t.Error("Error finding contact ")
+			}
 		}
-	}
-	SearchKey := tree_node[targetIdx].SelfContact.NodeID
-	//t.Log("Wait for connect")
-	//Connect(t, tree_node, kNum)
-	//t.Log("Connect!")
-	time.Sleep(100 * time.Millisecond)
-	//cHeap := PriorityQueue{instance2.SelfContact, []Contact{}, SearchKey}
-	//t.Log("Wait for iterative")
-	res, err := tree_node[2].DoIterativeFindNode(SearchKey)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	t.Log("SearchKey:" + SearchKey.AsString())
-	if res == nil || len(res) == 0 {
-		t.Error("No contacts were found")
-	}
-	find := false
-	fmt.Print("# of results:  ")
-	fmt.Println(len(res))
-	for _, value := range res {
-		t.Log(value.NodeID.AsString())
-		if value.NodeID.Equals(SearchKey) {
-			find = true
-		}
-//		heap.Push(&cHeap, value)
-	}
-//	c := cHeap.Pop().(Contact)
-//	t.Log("Closet Node:" + c.NodeID.AsString())
-
-//	t.Log(strconv.Itoa(cHeap.Len()))
-	if !find {
-		t.Log("Instance2:" + instance2.NodeID.AsString())
-		t.Error("Find wrong id")
-	}
-	t.Error(len(res))
-	return
-}
+		return
 
 /*
 func TestIterativeFindNode(t *testing.T) {
