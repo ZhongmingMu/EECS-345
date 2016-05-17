@@ -11,7 +11,6 @@ import (
 )
 
 // For project 2!
-//structure of shortList
 type shortList struct {
 	visted     map[ID]bool
 	pool       *list.List
@@ -19,15 +18,19 @@ type shortList struct {
 	result     []Contact
 }
 
-//structure of one rpc_find which is used to be processed
 type singleResult struct {
 	contacts []Contact // rpc find_node call results
 	self     Contact   // who sent this result
 	err      error
-	count    int      //how many rpc_find in this cycle
+	count    int
 }
 
-// compare the smaller one
+//because each cycle create a new shortlist, should return it with the flag
+type returnType struct {
+	flag       bool
+	resultList shortList
+}
+
 func min(lhs int, rhs int) int {
 	if lhs < rhs {
 		return lhs
@@ -35,7 +38,6 @@ func min(lhs int, rhs int) int {
 	return rhs
 }
 
-//Initialize the shortList
 func (sl *shortList) initShortList() {
 	sl.visted = make(map[ID]bool)
 	sl.pool = list.New()
@@ -43,23 +45,6 @@ func (sl *shortList) initShortList() {
 	sl.result = make([]Contact, 0, 20)
 }
 
-type valShortList struct {
-	visted     map[ID]bool
-	pool       *list.List
-	closetNode Contact
-	active     []Contact
-	nodesToSto []Contact
-	key        ID
-	val        []byte
-}
-
-type rpcFindValRes struct {
-	self     Contact
-	value    []byte
-	contacts []Contact
-	err      error
-}
-//issued one rpc_findnode and insert the result to processchan in order to process in server
 func rpc_search(k *Kademlia, c Contact, target ID, processchan chan singleResult, count int) {
 	sr := *(new(singleResult))
 	result, err := k.DoFindNode(&c, target)
@@ -67,10 +52,10 @@ func rpc_search(k *Kademlia, c Contact, target ID, processchan chan singleResult
 	sr.contacts = result
 	sr.self = c
 	sr.count = count
-	processchan <- sr																									//push result to channals
+
+	processchan <- sr
 }
 
-//sort shortList.pool, only keep 20 cloest potential node for next cycle
 func SortList(ShortList *shortList, target ID) {
 	newpool := list.New()
 	len := ShortList.pool.Len()
@@ -89,21 +74,20 @@ func SortList(ShortList *shortList, target ID) {
 			}
 		}
 		count++
-		if count == 20 {																		//only keep 20 nodes
+		if count == 20 {
 			break
 		}
 	}
 	ShortList.pool = newpool
 }
 
-//add the result to the shortList, and add the active process to the result list, and update closetNode
 func dealWithSingleResult(myShortList *shortList, sr singleResult, target ID, flag *bool) {
 	if sr.err == nil {
-		myShortList.result = append(myShortList.result, sr.self)											//add the active process
+		myShortList.result = append(myShortList.result, sr.self)
 		for i := 0; i < len(sr.contacts); i++ {
-			if _, ok := myShortList.visted[sr.contacts[i].NodeID]; !ok {								//if this node has not been visited
+			if _, ok := myShortList.visted[sr.contacts[i].NodeID]; !ok {
 				myShortList.pool.PushFront(sr.contacts[i])
-				if !(target.Xor(myShortList.closetNode.NodeID).Less(target.Xor(sr.contacts[i].NodeID))) {	//update closetNode
+				if !(target.Xor(myShortList.closetNode.NodeID).Less(target.Xor(sr.contacts[i].NodeID))) {
 					myShortList.closetNode = sr.contacts[i]
 					*flag = true
 				}
@@ -112,32 +96,29 @@ func dealWithSingleResult(myShortList *shortList, sr singleResult, target ID, fl
 	}
 }
 
-//a server keep running processing the result of each rpc_find
 func (k *Kademlia) start_update_check_service(target ID, myShortList *shortList, processchan chan singleResult,
 	poolchan chan []Contact, flagchan chan bool) {
-	//process the result of a cycle
 	for {
 		flag := false
 		count := 0
 		for {
 			para := <-processchan
-			dealWithSingleResult(myShortList, para, target, &flag) 	//process the result of single rpc_find
+			dealWithSingleResult(myShortList, para, target, &flag) //it's not the original myShortList
 			if len(myShortList.result) == 20 {
 				flag = false
 				break
 			}
 			count++
-			if count == para.count { 																//if it is the last call of this cycle, break
+			if count == para.count { //if it is the last call of this cycle, break
 				break
 			}
 		}
-		//select the next nodes for rpc_find
 		if flag {
 			next_nodes := make([]Contact, 0, alpha)
 			if myShortList.pool.Len() == 0 {
 				flag = false
 			} else {
-				SortList(myShortList, target)														//sort the shortList.pool
+				SortList(myShortList, target)
 				currentPoolSize := myShortList.pool.Len()
 				length := alpha
 				if currentPoolSize < alpha {
@@ -146,25 +127,43 @@ func (k *Kademlia) start_update_check_service(target ID, myShortList *shortList,
 				for i := 0; i < length; i++ {
 					ele := myShortList.pool.Front()
 					next_nodes = append(next_nodes, ele.Value.(Contact))
-					myShortList.visted[next_nodes[i].NodeID] = true								//add this node to be visited
-					myShortList.pool.Remove(ele)																	//remove from the myShortList.pool
+					myShortList.visted[next_nodes[i].NodeID] = true
+					myShortList.pool.Remove(ele)
 				}
 			}
 			if len(next_nodes) == 0 {
 				flag = false
 				break
 			}
-			go func() {																										//add the next_nodes to the poolchan
+			go func() {
 				poolchan <- next_nodes
 			}()
 		}
-			go func() {																											//add the result to the resultchan
-				flagchan <- flag
-			}()
-			if flag == false {																							//if meet terminate condition, terminate service
-				break
-			}
+		go func() {
+			flagchan <- flag
+		}()
+		if flag == false {
+			break
+		}
 	}
+}
+
+// data types for iterative find value
+type valShortList struct {
+	visted     map[ID]bool
+	pool       *list.List
+	closetNode Contact
+	active     []Contact
+	nodesToSto []Contact
+	key        ID			// stored key
+	val        []byte		// stored value
+}
+
+type rpcFindValRes struct {
+	self     Contact
+	value    []byte
+	contacts []Contact
+	err      error
 }
 
 func (sl *valShortList) initValShortList(kk *Kademlia, key ID) {
@@ -203,11 +202,6 @@ func dealWithFindValRes(sl *valShortList, res rpcFindValRes) {
 			if _, ok := sl.visted[res.contacts[i].NodeID]; !ok {
 				// not contacted before
 				sl.pool.PushFront(res.contacts[i])
-				// if sl.key.Xor(res.contacts[i].NodeID).Less(sl.key.Xor(sl.closetNode.NodeID)) {
-				// find a node with smaller distance to the key you want
-				//  sl.closetNode = res.contacts[i]
-				//  isChanged = true
-				//}
 			}
 		}
 	}
@@ -271,7 +265,6 @@ func valShortListManager(sl *valShortList, reqPoolChan chan bool, resPoolChan ch
 		case res := <-rpcResChan:
 			dealWithFindValRes(sl, res)
 			isRpcResFinish <- true
-			// isChangedChan <- balalala
 		// terminate this goroutine
 		case <-mgrCloseChan:
 			return
