@@ -3,7 +3,7 @@ package libkademlia
 import (
 	"bytes"
 	//"fmt"
-	//"net"
+	"net"
 	"strconv"
 	"testing"
 	//"time"

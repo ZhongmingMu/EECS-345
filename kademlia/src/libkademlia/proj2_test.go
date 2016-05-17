@@ -3,7 +3,7 @@ package libkademlia
 import (
 	//"bytes"
 	"fmt"
-	"net"
+	//"net"
 	"strconv"
 	"testing"
 	"time"
@@ -96,7 +96,67 @@ func TestIterativeFindNode(t *testing.T) {
 }
 
 // EXTRACREDIT
-//Check out the Correctness of DoIterativeStore and DoIterativeFindValue
+//Check out the Correctness of DoIterativeStore
+func TestIterativeStore(t *testing.T) {
+	// tree structure;
+	// A->B->tree->tree2
+	/*
+	          C
+	      /
+	   A-B -- D
+	       \
+	          E
+	*/
+	instance1 := NewKademlia("localhost:7506")
+	instance2 := NewKademlia("localhost:7507")
+	host2, port2, _ := StringToIpPort("localhost:7507")
+	instance1.DoPing(host2, port2)
+
+	//Build the  A->B->Tree structure
+	tree_node := make([]*Kademlia, 20)
+	for i := 0; i < 20; i++ {
+		address := "localhost:" + strconv.Itoa(7508+i)
+		tree_node[i] = NewKademlia(address)
+		host_number, port_number, _ := StringToIpPort(address)
+		instance2.DoPing(host_number, port_number)
+	}
+	//implement DoIterativeStore, and get the the result
+	value := []byte("Hello world")
+	key := NewRandomID()
+	contacts, err := instance1.DoIterativeStore(key, value)
+	//the number of contacts store the value should be 20
+	if err != nil || len(contacts) != 20 {
+		t.Error("Error doing DoIterativeStore")
+	}
+	//Check all the 22 nodes,
+	//find out the number of nodes that contains the value
+	count := 0
+	// check tree_nodes[0~19]
+	for i := 0; i < 20; i++ {
+		result, err := tree_node[i].LocalFindValue(key)
+		if result != nil && err == nil {
+			count++
+		}
+	}
+	//check instance2
+	result, err := instance2.LocalFindValue(key)
+	if result != nil && err == nil {
+		count++
+	}
+	//check instance1
+	result, err = instance1.LocalFindValue(key)
+	if result != nil && err == nil {
+		count++
+	}
+	//Within all 22 nodes
+	//the number of nodes that store the value should be 20
+	if count != 20 {
+		t.Error("DoIterativeStore Failed")
+	}
+}
+
+// EXTRACREDIT
+//Check out the Correctness of DoIterativeFindValue
 func TestIterativeFindValue(t *testing.T) {
 	// tree structure;
 	// A->B->tree->tree2
@@ -135,20 +195,20 @@ func TestIterativeFindValue(t *testing.T) {
 		}
 	}
 
-	// EXTRACREDIT
-	//Check out the correctness of DoIterativeStore
+	//Store value into nodes
 	value := []byte("Hello world")
 	key := NewRandomID()
-	contacts, err := tree_node[3].DoIterativeStore(key, value)
+	contacts, err := instance1.DoIterativeStore(key, value)
 	if err != nil || len(contacts) != 20 {
 		t.Error("Error doing DoIterativeStore")
 	}
-	//fmt.Println(len(contacts))
+
 	//After Store, check out the correctness of DoIterativeFindValue
 	result, err := instance1.DoIterativeFindValue(key)
 	if err != nil || result == nil {
 		t.Error("Error doing DoIterativeFindValue")
 	}
+
 	//Check the correctness of the value we find
 	res := string(result[:])
 	fmt.Println(res)
