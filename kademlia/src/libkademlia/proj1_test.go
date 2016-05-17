@@ -2,10 +2,10 @@ package libkademlia
 
 import (
 	//	"bytes"
+	"fmt"
 	"net"
 	"strconv"
 	"testing"
-	//"fmt"
 	//"time"
 )
 
@@ -128,24 +128,42 @@ func TestFindNode(t *testing.T) {
 		return
 	}
 
-	tree_node := make([]*Kademlia, 10)
-	for i := 0; i < 10; i++ {
+	tree_node := make([]*Kademlia, 20)
+	for i := 0; i < 20; i++ {
 		address := "localhost:" + strconv.Itoa(7896+i)
 		tree_node[i] = NewKademlia(address)
 		host_number, port_number, _ := StringToIpPort(address)
 		instance2.DoPing(host_number, port_number)
 	}
 
-	key := NewRandomID()
-	contacts, err := instance1.DoIterativeFindNode(key)
-
+	tree_node2 := make([]*Kademlia, 20)
+	for j := 20; j < 40; j++ {
+		address := "localhost:" + strconv.Itoa(7896+j)
+		tree_node2[j-20] = NewKademlia(address)
+		host_number, port_number, _ := StringToIpPort(address)
+		for i := 0; i < 20; i++ {
+			tree_node[i].DoPing(host_number, port_number)
+		}
+	}
+	tmp_contact, err := tree_node[3].FindContact(tree_node2[12].NodeID)
+	if err != nil {
+		t.Error("contact not found in Instance 2's contact list")
+		return
+	}
+	value := []byte("Hello world")
+	//key := NewRandomID()
+	tree_node[3].DoStore(tmp_contact, tmp_contact.NodeID, value)
+	result, err := instance1.DoIterativeFindValue(tmp_contact.NodeID)
+	//fmt.Println(contact)
 	if err != nil {
 		t.Error("Error doing FindNode")
 	}
-
-	if contacts == nil || len(contacts) == 0 {
-		t.Error("No contacts were found")
-	}
+	res := string(result[:])
+	fmt.Println(res)
+	// if contacts == nil || len(contacts) == 0 {
+	// 	t.Error("No contacts were found")
+	// }
+	t.Error("Finish")
 
 	// TODO: Check that the correct contacts were stored
 	//       (and no other contacts)
