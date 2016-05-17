@@ -438,6 +438,9 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 	if req.MsgID.Equals(res.MsgID) { //set update k-buckets table request to update request contact
 		k.RTManagerChan <- *contact
 	}
+	for _, result := range res.Nodes {
+		k.RTManagerChan <- result
+	}
 	return res.Nodes, nil
 }
 
