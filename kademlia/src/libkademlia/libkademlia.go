@@ -488,17 +488,15 @@ func (k *Kademlia) LocalFindValue(searchKey ID) ([]byte, error) {
 
 }
 
-// for project 2
+// for project 2, the help function is in iterative_lib.go
 func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
-	// init shortlist
 	myShortList := *(new(shortList))
-	//channals
 	poolchan := make(chan []Contact)
 	flagchan := make(chan bool)
 	processchan := make(chan singleResult)
-
-	myShortList.initShortList()
 	reschan := make(chan []Contact)
+	myShortList.initShortList()											//initial the shortList
+	//local find ( first find)
 	fbt := FindBucketType{reschan, id}
 	go func() {
 		k.NodeFindChan <- fbt
@@ -507,13 +505,14 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	if len(contacts) < 1 {
 		return nil, &CommandFailed{"No Contact is Found"}
 	}
+	//find the closetNode of the first local find nodes
 	myShortList.closetNode = contacts[0]
 	for i := 0; i < len(contacts); i++ {
 		if !(id.Xor(myShortList.closetNode.NodeID).Less(id.Xor(contacts[i].NodeID))) {
 			myShortList.closetNode = contacts[i]
 		}
 	}
-	// add initial search nodes to pool channals
+	// add initial search nodes to pool channals, and mark them visited
 	firstpoll := make([]Contact, 0, 20)
 	firstpoll = append(firstpoll, myShortList.closetNode)
 	myShortList.visted[myShortList.closetNode.NodeID] = true
@@ -533,24 +532,26 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	}()
 	myShortList.visted[k.SelfContact.NodeID] = true
 	myShortList.result = append(myShortList.result, k.SelfContact)
+
 	//start start_update_check_service
 	go k.start_update_check_service(id, &myShortList, processchan, poolchan, flagchan)
+	//start the iterative find
 	for {
 		flag := true
-		//poll next alpha nodes
-		next_nodes := <-poolchan
+		next_nodes := <-poolchan															//get the nodes from where to find
 		for i := 0; i < len(next_nodes); i++ {
 			go rpc_search(k, next_nodes[i], id, processchan, len(next_nodes))
 		}
-		flag = <-flagchan
+		flag = <-flagchan																			//extract the result of one cycle
 		if flag == false {
 			break
 		}
 	}
+	//fill the shortlist if possible
 	if len(myShortList.result) < 20 && myShortList.pool.Len() > 0 {
 		for e := myShortList.pool.Front(); e != nil; e = e.Next() {
 			c := e.Value.(Contact)
-			if _, ok := myShortList.visted[c.NodeID]; !ok {
+			if _, ok := myShortList.visted[c.NodeID]; !ok {	//if node is active and has not been visted, add them to result
 				_, err := k.DoFindNode(&c, id)
 				if err == nil {
 					myShortList.result = append(myShortList.result, c)
