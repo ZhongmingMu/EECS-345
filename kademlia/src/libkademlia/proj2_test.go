@@ -30,6 +30,7 @@ func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
 }
 
 // EXTRACREDIT
+// Check out the correctness of DoIterativeFindNode function
 func TestIterativeFindNode(t *testing.T) {
 	// tree structure;
 	// A->B->tree
@@ -95,15 +96,20 @@ func TestIterativeFindNode(t *testing.T) {
 	//return
 }
 
+// EXTRACREDIT
+//Check out the Correctness of DoIterativeStore and DoIterativeFindValue
 func TestIterativeFindValue(t *testing.T) {
 	// tree structure;
-	// A->B->tree
+	// A->B->tree->tree2
 	/*
-	          C
-	       /
-	   A-B -- D
-	       \
-	          E
+		                F
+			  /
+		          C --G
+		         /    \
+		       /        H
+		   A-B -- D
+		       \
+		          E
 	*/
 
 	instance1 := NewKademlia("localhost:7406")
@@ -111,12 +117,7 @@ func TestIterativeFindValue(t *testing.T) {
 	host2, port2, _ := StringToIpPort("localhost:7407")
 	instance1.DoPing(host2, port2)
 
-	_, err := instance1.FindContact(instance2.NodeID)
-	if err != nil {
-		t.Error("Instance 2's contact not found in Instance 1's contact list")
-		return
-	}
-
+	//Build the  A->B->Tree structure
 	tree_node := make([]*Kademlia, 20)
 	for i := 0; i < 20; i++ {
 		address := "localhost:" + strconv.Itoa(7408+i)
@@ -124,7 +125,7 @@ func TestIterativeFindValue(t *testing.T) {
 		host_number, port_number, _ := StringToIpPort(address)
 		instance2.DoPing(host_number, port_number)
 	}
-
+	//Build the A->B->Tree->Tree2 structure
 	tree_node2 := make([]*Kademlia, 20)
 	for j := 20; j < 40; j++ {
 		address := "localhost:" + strconv.Itoa(7408+j)
@@ -134,11 +135,9 @@ func TestIterativeFindValue(t *testing.T) {
 			tree_node[i].DoPing(host_number, port_number)
 		}
 	}
-	// tmp_contact, err := tree_node[3].FindContact(tree_node2[12].NodeID)
-	// if err != nil {
-	//  t.Error("contact not found in Instance 2's contact list")
-	//  return
-	// }
+
+	// EXTRACREDIT
+	//Check out the correctness of DoIterativeStore
 	value := []byte("Hello world")
 	key := NewRandomID()
 	contacts, err := tree_node[3].DoIterativeStore(key, value)
@@ -146,10 +145,12 @@ func TestIterativeFindValue(t *testing.T) {
 		t.Error("Error doing DoIterativeStore")
 	}
 	//fmt.Println(len(contacts))
+	//After Store, check out the correctness of DoIterativeFindValue
 	result, err := instance1.DoIterativeFindValue(key)
-	if err != nil {
+	if err != nil || result == nil {
 		t.Error("Error doing DoIterativeFindValue")
 	}
+	//Check the correctness of the value we find
 	res := string(result[:])
 	fmt.Println(res)
 	//t.Error("Finish")
