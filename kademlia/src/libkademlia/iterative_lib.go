@@ -2,7 +2,7 @@ package libkademlia
 
 import (
 	"container/list"
-	//"fmt"
+	"fmt"
 	//"log"
 	//"net"
 	//"net/http"
@@ -93,10 +93,12 @@ func dealWithSingleResult(myShortList *shortList, sr singleResult, target ID, fl
 				if !(target.Xor(myShortList.closetNode.NodeID).Less(target.Xor(sr.contacts[i].NodeID))) {	//update closetNode
 					myShortList.closetNode = sr.contacts[i]
 					*flag = true
+					fmt.Printf("in")
 				}
 			}
 		}
 	}
+
 }
 
 //a server keep running processing the result of each rpc_find
@@ -121,6 +123,8 @@ func (k *Kademlia) start_update_check_service(target ID, myShortList *shortList,
 		//select the next nodes for rpc_find
 		if flag {
 			next_nodes := make([]Contact, 0, alpha)
+			fmt.Println("len of pool ")
+			fmt.Println(myShortList.pool.Len())
 			if myShortList.pool.Len() == 0 {
 				flag = false
 			} else {

@@ -547,12 +547,17 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	//start start_update_check_service
 	go k.start_update_check_service(id, &myShortList, processchan, poolchan, flagchan)
 	//start the iterative find
+
 	for {
+		count := 0
+		fmt.Println("count ")
+		fmt.Println(count)
 		flag := true
 		next_nodes := <-poolchan //get the nodes from where to find
 		for i := 0; i < len(next_nodes); i++ {
 			go rpc_search(k, next_nodes[i], id, processchan, len(next_nodes))
 		}
+		count ++
 		flag = <-flagchan //extract the result of one cycle
 		if flag == false {
 			break
