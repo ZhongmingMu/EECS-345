@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"strconv"
+	//"time"
 )
 
 const (
@@ -28,6 +29,7 @@ type KVpair struct {
 type FindBucketType struct {
 	reschan chan []Contact
 	nodeid  ID
+	senderid ID
 }
 
 //Contactfind Result struct
@@ -214,7 +216,7 @@ func (k *Kademlia) UpdateHandler() {
 			k.UpdateDataStore(&p)
 		case f := <-k.NodeFindChan: //handle node finding
 			//fmt.Printf("%d: before FindNode \n", k.SelfContact.Port)
-			k.findCloestNodes(f.nodeid, f.reschan)
+			k.findCloestNodes(f.senderid, f.nodeid, f.reschan)
 		case cf := <-k.ContactFindChan: //handle contact finding
 			//fmt.Printf("%d: before findcontact \n", k.SelfContact.Port)
 			k.FindContactHelper(cf.nodeid, cf.reschan)
@@ -230,7 +232,7 @@ func (k *Kademlia) UpdateHandler() {
 }
 
 //handle finding nodes func---find k cloest nodes
-func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact) {
+func (kk *Kademlia) findCloestNodes(senderid ID, nodeid ID, reschan chan []Contact) {
 	nodes := ([]Contact{}) //result list
 
 	closestnum := FindBucketNum(kk.NodeID, nodeid) //find bucket num storing nodeid
@@ -245,8 +247,10 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact) {
 		//fmt.Printf("%d: list length %d\n", kk.SelfContact.Port, kk.RouteTable[closestnum].bucket.Len())
 		//fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, FormatTrans(e.Value.(*Contact)).Port)
 		////fmt.Printf("%d: port  %d\n", kk.SelfContact.Port, nodes[0].Port)
-		nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
-		count = count + 1
+		if !FormatTrans(e.Value.(*Contact)).NodeID.Equals(senderid) {
+			nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
+			count = count + 1
+		}
 	}
 
 	//if the closet bucket has < k nodes, find neigh nodes until find k nodes or find all the buckets
@@ -254,10 +258,12 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact) {
 	for count < k {
 		if closestnum+diff < b {
 			for e := kk.RouteTable[closestnum+diff].bucket.Front(); e != nil; e = e.Next() {
-				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
-				count = count + 1
-				if count >= k-1 {
-					break
+				if !FormatTrans(e.Value.(*Contact)).NodeID.Equals(senderid) {
+					nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
+					count = count + 1
+					if count >= k-1 {
+						break
+					}
 				}
 			}
 		}
@@ -273,10 +279,12 @@ func (kk *Kademlia) findCloestNodes(nodeid ID, reschan chan []Contact) {
 		if closestnum-diff >= 0 {
 			for e := kk.RouteTable[closestnum-diff].bucket.Front(); e != nil; e = e.Next() {
 				//fmt.Printf("%d: here count %d \n", kk.SelfContact.Port, count)
-				nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
-				count = count + 1
-				if count >= k-1 {
-					break
+				if !FormatTrans(e.Value.(*Contact)).NodeID.Equals(senderid) {
+					nodes = append(nodes, FormatTrans(e.Value.(*Contact)))
+					count = count + 1
+					if count >= k-1 {
+						break
+					}
 				}
 			}
 		}
@@ -500,7 +508,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	reschan := make(chan []Contact)
 	myShortList.initShortList() //initial the shortList
 	//local find ( first find)
-	fbt := FindBucketType{reschan, id}
+	fbt := FindBucketType{reschan, id, k.SelfContact.NodeID}
 	go func() {
 		k.NodeFindChan <- fbt
 	}()
@@ -533,8 +541,8 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	go func() {
 		poolchan <- firstpoll
 	}()
-	myShortList.visted[k.SelfContact.NodeID] = true
-	myShortList.result = append(myShortList.result, k.SelfContact)
+	//myShortList.visted[k.SelfContact.NodeID] = true
+	//myShortList.result = append(myShortList.result, k.SelfContact)
 
 	//start start_update_check_service
 	go k.start_update_check_service(id, &myShortList, processchan, poolchan, flagchan)
@@ -549,6 +557,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 		if flag == false {
 			break
 		}
+		//	time.Sleep(300 * time.Millisecond)
 	}
 	//fill the shortlist if possible
 	if len(myShortList.result) < 20 && myShortList.pool.Len() > 0 {
@@ -569,6 +578,8 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	if len(myShortList.result) == 0 {
 		return nil, &CommandFailed{"No Contact is Found"}
 	}
+
+
 	return myShortList.result, nil
 }
 
@@ -603,7 +614,7 @@ func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 	}
 
 	localreschan := make(chan []Contact)
-	fbt := FindBucketType{localreschan, key}
+	fbt := FindBucketType{localreschan, key, kk.SelfContact.NodeID}
 	// go func() {
 	// 	k.NodeFindChan <- fbt
 	// }()
@@ -653,7 +664,7 @@ func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 
 	}
 	myShortList.active = myShortList.active[:min(len(myShortList.active), 20)]
-	fmt.Println(len(myShortList.active))
+	//fmt.Println(len(myShortList.active))
 
 	if myShortList.val != nil {
 		// store value in closest contact
@@ -670,7 +681,6 @@ func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 
 		return myShortList.val, nil
 	}
-
 	return nil, &CommandFailed{"value not found"}
 }
 

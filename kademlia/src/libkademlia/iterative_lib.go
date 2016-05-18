@@ -43,6 +43,9 @@ func (sl *shortList) initShortList() {
 	sl.result = make([]Contact, 0, 20)
 }
 
+
+
+
 //issued one rpc_findnode and insert the result to processchan in order to process in server
 func rpc_search(k *Kademlia, c Contact, target ID, processchan chan singleResult, count int) {
 	sr := *(new(singleResult))
@@ -129,9 +132,11 @@ func (k *Kademlia) start_update_check_service(target ID, myShortList *shortList,
 				}
 				for i := 0; i < length; i++ {
 					ele := myShortList.pool.Front()
+					if _, ok := myShortList.visted[ele.Value.(Contact).NodeID]; !ok {
 					next_nodes = append(next_nodes, ele.Value.(Contact))
 					myShortList.visted[next_nodes[i].NodeID] = true								//add this node to be visited
 					myShortList.pool.Remove(ele)																	//remove from the myShortList.pool
+					}
 				}
 			}
 			if len(next_nodes) == 0 {

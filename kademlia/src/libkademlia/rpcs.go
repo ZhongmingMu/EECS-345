@@ -107,7 +107,7 @@ func (k *KademliaRPC) FindNode(req FindNodeRequest, res *FindNodeResult) error {
 
 	//res.Nodes = k.kademlia.findCloestNodes(nodeid, nodes)
 	//put in the findbucket channel in order to find the nodes
-	nodetype := FindBucketType{reschan, nodeid}
+	nodetype := FindBucketType{reschan, nodeid, req.Sender.NodeID}
 	k.kademlia.NodeFindChan <- nodetype
 	// fmt.Printf("%d: ??????? ", k.kademlia.SelfContact.Port)
 	res.Nodes = <-nodetype.reschan //extract the result
@@ -153,7 +153,7 @@ func (k *KademliaRPC) FindValue(req FindValueRequest, res *FindValueResult) erro
 		res.Nodes = nil
 	} else { // if the value is not found, return k closet buckets
 		rc := make(chan []Contact)
-		nodetype := FindBucketType{rc, searchid}
+		nodetype := FindBucketType{rc, searchid, req.Sender.NodeID}
 		k.kademlia.NodeFindChan <- nodetype //findNOde()
 		res.Nodes = <-nodetype.reschan
 		res.Value = nil
