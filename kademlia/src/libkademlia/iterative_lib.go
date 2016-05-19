@@ -2,12 +2,6 @@ package libkademlia
 
 import (
 	"container/list"
-	"fmt"
-	//"log"
-	//"net"
-	//"net/http"
-	//"net/rpc"
-	//"strconv"
 )
 
 // For project 2!
@@ -86,19 +80,19 @@ func SortList(ShortList *shortList, target ID) {
 //add the result to the shortList, and add the active process to the result list, and update closetNode
 func dealWithSingleResult(myShortList *shortList, sr singleResult, target ID, flag *bool) {
 	if sr.err == nil {
+
 		myShortList.result = append(myShortList.result, sr.self)											//add the active process
 		for i := 0; i < len(sr.contacts); i++ {
 			if _, ok := myShortList.visted[sr.contacts[i].NodeID]; !ok {								//if this node has not been visited
 				myShortList.pool.PushFront(sr.contacts[i])
 				if !(target.Xor(myShortList.closetNode.NodeID).Less(target.Xor(sr.contacts[i].NodeID))) {	//update closetNode
-					myShortList.closetNode = sr.contacts[i]
 					*flag = true
-					fmt.Printf("in")
+					myShortList.closetNode = sr.contacts[i]
+
 				}
 			}
 		}
 	}
-
 }
 
 //a server keep running processing the result of each rpc_find
@@ -123,8 +117,8 @@ func (k *Kademlia) start_update_check_service(target ID, myShortList *shortList,
 		//select the next nodes for rpc_find
 		if flag {
 			next_nodes := make([]Contact, 0, alpha)
-			fmt.Println("len of pool ")
-			fmt.Println(myShortList.pool.Len())
+			//fmt.Println("len of pool ")
+			//fmt.Println(myShortList.pool.Len())
 			if myShortList.pool.Len() == 0 {
 				flag = false
 			} else {

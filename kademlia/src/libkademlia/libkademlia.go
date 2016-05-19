@@ -541,17 +541,12 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	go func() {
 		poolchan <- firstpoll
 	}()
-	//myShortList.visted[k.SelfContact.NodeID] = true
-	//myShortList.result = append(myShortList.result, k.SelfContact)
 
 	//start start_update_check_service
 	go k.start_update_check_service(id, &myShortList, processchan, poolchan, flagchan)
 	//start the iterative find
-
 	for {
 		count := 0
-		fmt.Println("count ")
-		fmt.Println(count)
 		flag := true
 		next_nodes := <-poolchan //get the nodes from where to find
 		for i := 0; i < len(next_nodes); i++ {
@@ -562,7 +557,6 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 		if flag == false {
 			break
 		}
-		//	time.Sleep(300 * time.Millisecond)
 	}
 	//fill the shortlist if possible
 	if len(myShortList.result) < 20 && myShortList.pool.Len() > 0 {
