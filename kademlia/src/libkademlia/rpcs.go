@@ -181,9 +181,9 @@ type GetVDOResult struct {
 func (k *KademliaRPC) GetVDO(req GetVDORequest, res *GetVDOResult) error {
 	// TODO: Implement.
 	resChan := make(chan VanashingDataObject)
+	k.kademlia.GetVDOChan <- GetVDOType{req.VdoID, resChan}
 
 	res.MsgID = req.MsgID
-	k.kademlia.GetVDOChan <- GetVDOType{req.VdoID, resChan}
 	res.VDO = <-resChan
 	return nil
 }
