@@ -714,30 +714,52 @@ func (k *Kademlia) Vanish(vdoID ID, data []byte, numberKeys byte,
 	return
 }
 
+
 func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 	req := GetVDORequest{k.SelfContact, vdoID, NewRandomID()}
 	res := new(GetVDOResult) //set the Result
-	contact, err := k.directFindContact(nodeID)
-	if err != nil {
-		fmt.Printf("Can not find nodeID")
-		return nil
-	}
-	portStr := strconv.Itoa(int(contact.Port))
-	firstPeerStr := contact.Host.String() + ":" + portStr
-
-	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
-
-	if err != nil {
-		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
-		//log.Fatal("dialing:", err)
-		return nil
+	resChan := make(chan VanashingDataObject)
+	k.GetVDOChan <- GetVDOType{vdoID, resChan}
+	ResVdo := <- resChan
+	if ResVdo.Ciphertext != nil {
+		data = k.UnvanishData(res.VDO)
+		return
 	}
 
-	err = client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
-	defer func() {
-		client.Close()
-	}()
 
-	data = k.UnvanishData(res.VDO)
+	ResCon, err := k.directFindContact(nodeID)
+	if err != nil {
+		return nil
+	}
+	//iterative find
+	if ResCon == nil {
+		contact1, err := k.DoIterativeFindNode(nodeID)
+		if err != nil {
+			return nil
+		}
+		for _, value := range contact1 {
+				if(nodeID.Equals(value.NodeID)) {
+					ResCon = &value
+					break
+				}
+			}
+	}
+
+	//if find node, find vdo
+	if ResCon != nil {
+		portStr := strconv.Itoa(int(ResCon.Port))
+		firstPeerStr := ResCon.Host.String() + ":" + portStr
+		client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
+		if err != nil {
+			return nil
+		}
+		err = client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
+		defer func() {
+			client.Close()
+		}()
+		data = k.UnvanishData(res.VDO)
+		return
+	}
+	data = nil
 	return
 }
