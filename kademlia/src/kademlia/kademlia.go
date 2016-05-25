@@ -370,7 +370,22 @@ func executeLine(k *libkademlia.Kademlia, line string) (response string) {
 			response = "ERR: Provided an invalid key (" + toks[1] + ")"
 			return
 		}
-		vdo := k.Vanish(vdoID, []byte(toks[2]), byte(toks[3]), byte(toks[4]), nil)
+		numberKey, err := strconv.Atoi(toks[3])
+		if err != nil {
+			response = "ERR: Input err"
+			return
+		}
+		threshold, err := strconv.Atoi(toks[4])
+		if err != nil {
+			response = "ERR: Input err"
+			return
+		}
+		vdo := k.Vanish(vdoID, []byte(toks[2]), byte(numberKey), byte(threshold), 0)
+		if vdo.Ciphertext != nil {
+			response = fmt.Sprintln("OK: VDO has vanished")
+		} else {
+			response = fmt.Sprintln("VDO vanish failed")
+		}
 	case toks[0] == "unvanish":
 		if len(toks) != 3 {
 			response = "usage: unvanish [nodeID] [VDO ID]"

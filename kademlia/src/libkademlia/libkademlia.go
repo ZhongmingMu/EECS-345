@@ -709,7 +709,7 @@ func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 // For project 3!
 func (k *Kademlia) Vanish(vdoID ID, data []byte, numberKeys byte,
 	threshold byte, timeoutSeconds int) (vdo VanashingDataObject) {
-	vdo := k.VanishData(data, numberKeys, threshold, timeoutSeconds)
+	vdo = k.VanishData(data, numberKeys, threshold, timeoutSeconds)
 	k.StoreVDO(vdoID, vdo)
 	return
 }
@@ -730,8 +730,7 @@ func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 	if err != nil {
 		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
 		//log.Fatal("dialing:", err)
-		return nil, &CommandFailed{
-			"Unable to FindNode " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
+		return nil
 	}
 
 	err = client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
@@ -739,6 +738,6 @@ func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 		client.Close()
 	}()
 
-	data := k.UnvanishData(res.VDO)
-	return data
+	data = k.UnvanishData(res.VDO)
+	return
 }
