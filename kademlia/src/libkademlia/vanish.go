@@ -79,15 +79,21 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	//Encrypting data
 	cipherText := encrypt(cryptoKey, data)
 	//splite K into N parts
-	multiSssKeyMap := sss.Split(numberKeys, threshold, cryptoKey)
+	multiSssKeyMap, err := sss.Split(numberKeys, threshold, cryptoKey)
+	if err != nil {
+		return
+	}
 	//get access key L
 	accessKey := GenerateRandomAccessKey()
 	//get random location
-	randIDs := CalculateSharedKeyLocations(accessKey, numberKeys)
+	randIDs := CalculateSharedKeyLocations(accessKey, int64(numberKeys))
 	//Store key
 	i := 0
 	for k, v := range multiSssKeyMap {
-		all := append([]byte{k}, v)
+		all := []byte{k}
+		for _, ele := range v {
+			all = append(all, ele)
+		}
 		//?? iterative or DoStore
 		kk.DoIterativeStore(randIDs[i], all)
 		i++
@@ -101,11 +107,11 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 }
 
 func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
-	LocationIDs := CalculateSharedKeyLocations(vdo.AccessKey, vdo.NumberKeys)
-	multiSssKeyMap := make(map[byte][]byte, n)
+	LocationIDs := CalculateSharedKeyLocations(vdo.AccessKey, int64(vdo.NumberKeys))
+	multiSssKeyMap := make(map[byte][]byte)
 	count := 0
 	//get the map which contains (k, v)
-	for id := range LocationIDs {
+	for _, id := range LocationIDs {
 		all, err := kk.DoIterativeFindValue(id)
 		if err == nil {
 			multiSssKeyMap[all[0]] = all[1:]
@@ -113,7 +119,7 @@ func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
 		}
 	}
 	//check the piece we get is enough
-	if count < vdo.Threshold {
+	if count < int(vdo.Threshold) {
 		return nil
 	}
 	//combine key piece and get cyptoKey
@@ -123,7 +129,7 @@ func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
 	return
 }
 
-func (kk *Kademlia) StoreVDO(key ID, vdo VandashingDataObj) {
-	sto := StoVdoType{key, vdo}
-	kk.StoVdoChan <- sto
+func (kk *Kademlia) StoreVDO(vdoID ID, vdo VanashingDataObject) {
+	sto := StoVDOType{vdoID, vdo}
+	kk.StoVDOChan <- sto
 }

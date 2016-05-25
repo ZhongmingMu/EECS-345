@@ -56,9 +56,14 @@ type FindValueType struct {
 	searchkey ID
 }
 
-type StoVdoType struct {
-	key ID
-	vdo VanashingDataObject
+type StoVDOType struct {
+	vdoID ID
+	vdo   VanashingDataObject
+}
+
+type GetVDOType struct {
+	vdoID   ID
+	reschan chan VanashingDataObject
 }
 
 // Kademlia type. You can put whatever state you need in this.
@@ -75,7 +80,9 @@ type Kademlia struct {
 	NodeFindChan    chan FindBucketType  //channel to store find node request
 	ContactFindChan chan FindContactType //channel to store find contact request
 	ValueFindChan   chan FindValueType   //channel to store find value request
-	StoVdoChan      chan StoVdoType
+
+	StoVDOChan chan StoVDOType // channel to StoVDOType
+	GetVDOChan chan GetVDOType // channel to getvdotype
 }
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
@@ -95,7 +102,10 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k.NodeFindChan = make(chan FindBucketType)
 	k.ContactFindChan = make(chan FindContactType)
 	k.ValueFindChan = make(chan FindValueType)
-	k.StoVdoChan = mak(chan StoVdoType)
+	// project 3 init vanish data structure
+	k.StoVDOChan = make(chan StoVDOType)
+	k.GetVDOChan = make(chan GetVDOType)
+	k.VDOStore = make(map[ID]VanashingDataObject)
 	// Set up RPC server
 	// NOTE: KademliaRPC is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -234,8 +244,13 @@ func (k *Kademlia) UpdateHandler() {
 			//	default:
 			////fmt.Printf("%d: default \n", k.SelfContact.Port)
 			//		continue
-		case stoVdo := <-k.StoVdoChan:
-			VDOStore[stoVdo.key] = stoVdo.vdo
+		case stoVdo := <-k.StoVDOChan:
+			k.VDOStore[stoVdo.vdoID] = stoVdo.vdo
+
+		case getVDOReq := <-k.GetVDOChan:
+			vdo, _ := k.VDOStore[getVDOReq.vdoID]
+			getVDOReq.reschan <- vdo
+
 		}
 	}
 }
