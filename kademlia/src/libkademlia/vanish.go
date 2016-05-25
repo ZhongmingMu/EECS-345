@@ -6,8 +6,8 @@ import (
 	"crypto/rand"
 	"io"
 	mathrand "math/rand"
+	"sss"
 	"time"
-	//"sss"
 )
 
 type VanashingDataObject struct {
@@ -72,11 +72,58 @@ func decrypt(key []byte, ciphertext []byte) (text []byte) {
 	return ciphertext
 }
 
-func (k *Kademlia) VanishData(data []byte, numberKeys byte,
+func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	threshold byte, timeoutSeconds int) (vdo VanashingDataObject) {
+	//get random key K
+	cryptoKey := GenerateRandomCryptoKey()
+	//Encrypting data
+	cipherText := encrypt(cryptoKey, data)
+	//splite K into N parts
+	multiSssKeyMap := sss.Split(numberKeys, threshold, cryptoKey)
+	//get access key L
+	accessKey := GenerateRandomAccessKey()
+	//get random location
+	randIDs := CalculateSharedKeyLocations(accessKey, numberKeys)
+	//Store key
+	i := 0
+	for k, v := range multiSssKeyMap {
+		all := append([]byte{k}, v)
+		//?? iterative or DoStore
+		kk.DoIterativeStore(randIDs[i], all)
+		i++
+	}
+	vdo.AccessKey = accessKey
+	vdo.Ciphertext = cipherText
+	vdo.NumberKeys = numberKeys
+	vdo.Threshold = threshold
+
 	return
 }
 
-func (k *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
-	return nil
+func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
+	LocationIDs := CalculateSharedKeyLocations(vdo.AccessKey, vdo.NumberKeys)
+	multiSssKeyMap := make(map[byte][]byte, n)
+	count := 0
+	//get the map which contains (k, v)
+	for id := range LocationIDs {
+		all, err := kk.DoIterativeFindValue(id)
+		if err == nil {
+			multiSssKeyMap[all[0]] = all[1:]
+			count++
+		}
+	}
+	//check the piece we get is enough
+	if count < vdo.Threshold {
+		return nil
+	}
+	//combine key piece and get cyptoKey
+	cyptoKey := sss.Combine(multiSssKeyMap)
+	//get data
+	data = decrypt(cyptoKey, vdo.Ciphertext)
+	return
+}
+
+func (kk *Kademlia) StoreVDO(key ID, vdo VandashingDataObj) {
+	sto := StoVdoType{key, vdo}
+	kk.StoVdoChan <- sto
 }

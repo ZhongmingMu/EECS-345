@@ -75,11 +75,11 @@ func main() {
 		log.Printf("ping msgID: %s\n", ping.MsgID.AsString())
 		log.Printf("pong msgID: %s\n\n", pong.MsgID.AsString())
 	*/
-	
+
 	// DoPing after setting new client
 	// kadem.DoPing(net.ParseIP(host), uint16(p))
 	log.Printf("Pinging initial peer\n")
-	executeLine(kadem, "ping " + firstPeerStr)
+	executeLine(kadem, "ping "+firstPeerStr)
 
 	in := bufio.NewReader(os.Stdin)
 	quit := false
@@ -360,6 +360,9 @@ func executeLine(k *libkademlia.Kademlia, line string) (response string) {
 		} else {
 			response = fmt.Sprintf("OK: Found value %s", value)
 		}
+	case toks[0] == "vanish":
+
+	case toks[0] == "unvanish":
 
 	default:
 		response = "ERR: Unknown command"

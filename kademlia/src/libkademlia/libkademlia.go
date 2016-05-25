@@ -27,8 +27,8 @@ type KVpair struct {
 
 //findNode request struct
 type FindBucketType struct {
-	reschan chan []Contact
-	nodeid  ID
+	reschan  chan []Contact
+	nodeid   ID
 	senderid ID
 }
 
@@ -56,6 +56,11 @@ type FindValueType struct {
 	searchkey ID
 }
 
+type StoVdoType struct {
+	key ID
+	vdo VanashingDataObject
+}
+
 // Kademlia type. You can put whatever state you need in this.
 type Kademlia struct {
 	NodeID      ID
@@ -63,18 +68,19 @@ type Kademlia struct {
 
 	RouteTable []K_Buckets   //RTable, k-buckets
 	DataStore  map[ID][]byte //map store the key-value
+	VDOStore   map[ID]VanashingDataObject
 
 	RTManagerChan   chan Contact         //channel to store update RTable request
 	DataStoreChan   chan KVpair          //channel to store store key-value request
 	NodeFindChan    chan FindBucketType  //channel to store find node request
 	ContactFindChan chan FindContactType //channel to store find contact request
 	ValueFindChan   chan FindValueType   //channel to store find value request
+	StoVdoChan      chan StoVdoType
 }
 
 func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k := new(Kademlia)
 	k.NodeID = nodeID
-
 	// TODO: Initialize other state here as you add functionality.
 
 	//initial k-buckets
@@ -89,6 +95,7 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 	k.NodeFindChan = make(chan FindBucketType)
 	k.ContactFindChan = make(chan FindContactType)
 	k.ValueFindChan = make(chan FindValueType)
+	k.StoVdoChan = mak(chan StoVdoType)
 	// Set up RPC server
 	// NOTE: KademliaRPC is just a wrapper around Kademlia. This type includes
 	// the RPC functions.
@@ -227,6 +234,8 @@ func (k *Kademlia) UpdateHandler() {
 			//	default:
 			////fmt.Printf("%d: default \n", k.SelfContact.Port)
 			//		continue
+		case stoVdo := <-k.StoVdoChan:
+			VDOStore[stoVdo.key] = stoVdo.vdo
 		}
 	}
 }
@@ -552,7 +561,7 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 		for i := 0; i < len(next_nodes); i++ {
 			go rpc_search(k, next_nodes[i], id, processchan, len(next_nodes))
 		}
-		count ++
+		count++
 		flag = <-flagchan //extract the result of one cycle
 		if flag == false {
 			break
@@ -577,7 +586,6 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	if len(myShortList.result) == 0 {
 		return nil, &CommandFailed{"No Contact is Found"}
 	}
-
 
 	return myShortList.result, nil
 }
