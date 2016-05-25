@@ -361,8 +361,8 @@ func executeLine(k *libkademlia.Kademlia, line string) (response string) {
 			response = fmt.Sprintf("OK: Found value %s", value)
 		}
 	case toks[0] == "vanish":
-		if len(toks) != 5 {
-			response = "usage: vanish [VDO ID] [data] [numberKey] [threshold]"
+		if len(toks) != 5 && len(toks) != 6 {
+			response = "usage: vanish [VDO ID] [data] [numberKey] [threshold] [timeout(optional)]"
 			return
 		}
 		vdoID, err := libkademlia.IDFromString(toks[1])
@@ -372,15 +372,24 @@ func executeLine(k *libkademlia.Kademlia, line string) (response string) {
 		}
 		numberKey, err := strconv.Atoi(toks[3])
 		if err != nil {
-			response = "ERR: Input err"
+			response = "ERR: Provided an invalid numberKey (" + toks[3] + ")"
 			return
 		}
 		threshold, err := strconv.Atoi(toks[4])
 		if err != nil {
-			response = "ERR: Input err"
+			response = "ERR: Provided an invalid threshold (" + toks[4] + ")"
 			return
 		}
-		vdo := k.Vanish(vdoID, []byte(toks[2]), byte(numberKey), byte(threshold), 0)
+
+		timeout := 0
+		if len(toks) == 6 {
+			timeout, err = strconv.Atoi(toks[3])
+			if err != nil {
+				response = "ERR: Provided an invalid timeout (" + toks[5] + ")"
+				return
+			}
+		}
+		vdo := k.Vanish(vdoID, []byte(toks[2]), byte(numberKey), byte(threshold), timeout)
 		if vdo.Ciphertext != nil {
 			response = fmt.Sprintln("OK: VDO has vanished")
 		} else {
