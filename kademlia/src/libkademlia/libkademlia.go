@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"strconv"
-	//"time"
+	"time"
 )
 
 const (
@@ -711,7 +711,26 @@ func (k *Kademlia) Vanish(vdoID ID, data []byte, numberKeys byte,
 	threshold byte, timeoutSeconds int) (vdo VanashingDataObject) {
 	vdo = k.VanishData(data, numberKeys, threshold, timeoutSeconds)
 	k.StoreVDO(vdoID, vdo)
+	now := time.Now()
+	unixTime := now.Unix()
+	go k.UpdateVDO(vdo, unixTime)
 	return
+}
+
+func (k *Kademlia) UpdateVDO(vdo VanashingDataObject, OriginTime int64) {
+	oldtime := OriginTime
+	timeoutSeconds := vdo.timeoutSeconds
+	for {
+		now := time.Now()
+		unixTime := now.Unix()
+		if(unixTime - oldtime > int64(timeoutSeconds)) {													//update
+			NumberKeys := vdo.NumberKeys
+			Threshold := vdo.Threshold
+			data := k.UnvanishData(vdo)
+			vdo = k.VanishData(data, NumberKeys, Threshold, timeoutSeconds)
+			oldtime = time.Now().Unix()
+		}
+	}
 }
 
 

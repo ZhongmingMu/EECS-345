@@ -15,6 +15,7 @@ type VanashingDataObject struct {
 	Ciphertext []byte
 	NumberKeys byte
 	Threshold  byte
+	timeoutSeconds int
 }
 
 func GenerateRandomCryptoKey() (ret []byte) {
@@ -102,6 +103,7 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	vdo.Ciphertext = cipherText
 	vdo.NumberKeys = numberKeys
 	vdo.Threshold = threshold
+	vdo.timeoutSeconds = timeoutSeconds
 
 	return
 }
