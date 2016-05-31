@@ -4,7 +4,7 @@ package libkademlia
 // as a receiver for the RPC methods, which is required by that package.
 
 import (
-	"fmt"
+"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -737,19 +737,9 @@ func (k *Kademlia) UpdateVDO(vdo VanashingDataObject, OriginTime int64) {
 func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 	req := GetVDORequest{k.SelfContact, vdoID, NewRandomID()}
 	res := new(GetVDOResult) //set the Result
-	resChan := make(chan VanashingDataObject)
-	k.GetVDOChan <- GetVDOType{vdoID, resChan}
-	ResVdo := <- resChan
-	if ResVdo.Ciphertext != nil {
-		data = k.UnvanishData(res.VDO)
-		return
-	}
 
+	ResCon, _ := k.directFindContact(nodeID)
 
-	ResCon, err := k.directFindContact(nodeID)
-	if err != nil {
-		return nil
-	}
 	//iterative find
 	if ResCon == nil {
 		contact1, err := k.DoIterativeFindNode(nodeID)
@@ -763,7 +753,6 @@ func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 				}
 			}
 	}
-
 	//if find node, find vdo
 	if ResCon != nil {
 		portStr := strconv.Itoa(int(ResCon.Port))
@@ -772,11 +761,19 @@ func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 		if err != nil {
 			return nil
 		}
+
 		err = client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
 		defer func() {
 			client.Close()
 		}()
 		data = k.UnvanishData(res.VDO)
+		return
+	}
+	resChan := make(chan VanashingDataObject)
+	k.GetVDOChan <- GetVDOType{vdoID, resChan}
+	ResVdo := <- resChan
+	if ResVdo.Ciphertext != nil {
+		data = k.UnvanishData(ResVdo)
 		return
 	}
 	data = nil

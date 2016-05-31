@@ -8,6 +8,8 @@ import (
 	mathrand "math/rand"
 	"sss"
 	"time"
+//	"fmt"
+	"bytes"
 )
 
 type VanashingDataObject struct {
@@ -91,10 +93,11 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	//Store key
 	i := 0
 	for k, v := range multiSssKeyMap {
-		all := []byte{k}
-		for _, ele := range v {
-			all = append(all, ele)
-		}
+		// all := []byte{k}
+		// for _, ele := range v {
+		// 	all = append(all, ele)
+		// }
+		all := append([]byte{k}, v...)
 		//?? iterative or DoStore
 		kk.DoIterativeStore(randIDs[i], all)
 		i++
@@ -109,13 +112,14 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 }
 
 func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
+
 	LocationIDs := CalculateSharedKeyLocations(vdo.AccessKey, int64(vdo.NumberKeys))
 	multiSssKeyMap := make(map[byte][]byte)
 	count := 0
 	//get the map which contains (k, v)
 	for _, id := range LocationIDs {
-		all, err := kk.DoIterativeFindValue(id)
-		if err == nil {
+		all, _ := kk.DoIterativeFindValue(id)
+		if !bytes.Equal(all, []byte("")) {
 			multiSssKeyMap[all[0]] = all[1:]
 			count++
 		}
