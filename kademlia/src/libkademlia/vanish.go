@@ -120,6 +120,9 @@ func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
 			multiSssKeyMap[all[0]] = all[1:]
 			count++
 		}
+		if count == int(vdo.Threshold) {
+			break
+		}
 	}
 	fmt.Println(count)
 	//check the piece we get is enough
