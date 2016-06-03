@@ -1,5 +1,5 @@
 package libkademlia
-//
+
 // import (
 // 	//"bytes"
 // 	//"fmt"
@@ -9,7 +9,7 @@ package libkademlia
 // 	//"container/heap"
 // //	"time"
 // )
-//
+
 // // EXTRACREDIT
 // // Check out the correctness of DoIterativeFindNode function
 // func TestIterativeFindNode1(t *testing.T) {
@@ -21,7 +21,7 @@ package libkademlia
 // 	address[i] = "localhost:" + strconv.Itoa(7000+i)
 // 	tree_node[i] = NewKademlia(address[i])
 // }
-//
+
 // //30 nodes ping each other
 // for i := 0; i < 30 ; i++ {
 // 	for j := 0; j < 30; j++ {
@@ -29,7 +29,7 @@ package libkademlia
 // 		tree_node[i].DoPing(host_number, port_number)
 // 	}
 // }
-//
+
 // //find node[19], start from node 0
 // contacts, _ := tree_node[0].DoIterativeFindNode(tree_node[19].SelfContact.NodeID)
 // count := 0
@@ -45,7 +45,7 @@ package libkademlia
 // }
 // return
 // }
-//
+
 // // EXTRACREDIT
 // // Check out the correctness of DoIterativeFindNode function
 // func TestIterativeFindNode2(t *testing.T) {
@@ -55,7 +55,7 @@ package libkademlia
 // 	tree_node := make([]*Kademlia, total_num)
 // 	instance1 := NewKademlia("localhost:7399")										//starting node
 // 	host1, port1, _ := StringToIpPort("localhost:7399")
-//
+
 // 	findId := total_num - 20
 // 	//initialize the nodes
 // 	for i := 0; i < total_num; i++ {
@@ -64,21 +64,21 @@ package libkademlia
 // 		tree_node[i].DoPing(host1, port1)														//every node ping instance1
 // 	}
 // 	target := tree_node[findId].SelfContact.NodeID								//id to be found
-//
+
 // 	//node less that findId ping the findId, not all ping the findId node
 // 	for i := 0; i < findId; i++ {
 // 			tree_node[findId].DoPing(tree_node[i].SelfContact.Host, tree_node[i].SelfContact.Port)
 // 	}
-//
+
 // 	result, err := instance1.DoIterativeFindNode(target)						//start from instance1,find target
 // 	if err != nil {
 // 		t.Error(err.Error())
 // 	}
-//
+
 // 	if result == nil || len(result) == 0 {
 // 		t.Error("No contacts were found")
 // 	}
-//
+
 // 	//check the result
 // 	count := 0
 // 	for _, value := range result {
@@ -125,10 +125,10 @@ package libkademlia
 // 		tree_node[i] = NewKademlia(address)
 // 		host_number, port_number, _ := StringToIpPort(address)
 // 		instance2.DoPing(host_number, port_number)
-//
+
 // 		for j := 0; j < 5; j++ {
 // 			address_v := "localhost:" + strconv.Itoa(4482+count)
-//
+
 // 			count++
 // 			instance_temp := NewKademlia(address_v)
 // 			host_number_v, port_number_v, _ := StringToIpPort(address_v)
@@ -141,7 +141,7 @@ package libkademlia
 // 				instance_temp.DoPing(host_number_r, port_number_r)
 // 			}
 // 		}
-//
+
 // 	}
 // 	//Implement DoIterativeFindNode
 // 	key := NewRandomID()
@@ -168,7 +168,7 @@ package libkademlia
 // 	instance2 := NewKademlia("localhost:6507")
 // 	host2, port2, _ := StringToIpPort("localhost:6507")
 // 	instance1.DoPing(host2, port2)
-//
+
 // 	//Build the  A->B->Tree structure
 // 	tree_node := make([]*Kademlia, 30)
 // 	for i := 0; i < 30; i++ {
@@ -211,7 +211,7 @@ package libkademlia
 // 		t.Error("DoIterativeStore Failed")
 // 	}
 // }
-//
+
 // // EXTRACREDIT
 // //Check out the Correctness of DoIterativeFindValue
 // //when value stored by DoIterativeStore
@@ -232,7 +232,7 @@ package libkademlia
 // 	instance2 := NewKademlia("localhost:5407")
 // 	host2, port2, _ := StringToIpPort("localhost:5407")
 // 	instance1.DoPing(host2, port2)
-//
+
 // 	//Build the  A->B->Tree structure
 // 	tree_node := make([]*Kademlia, 30)
 // 	for i := 0; i < 30; i++ {
@@ -251,7 +251,7 @@ package libkademlia
 // 			tree_node[i].DoPing(host_number, port_number)
 // 		}
 // 	}
-//
+
 // 	//Store value into nodes by DoIterativeStore
 // 	value := []byte("Hello world")
 // 	key := NewRandomID()
@@ -259,19 +259,19 @@ package libkademlia
 // 	if err != nil || len(contacts) != 20 {
 // 		t.Error("Error doing DoIterativeStore")
 // 	}
-//
+
 // 	//After Store, check out the correctness of DoIterativeFindValue
 // 	result, err := instance1.DoIterativeFindValue(key)
 // 	//Check the correctness of the value we find
 // 	if err != nil || string(result) != string(value) {
 // 		t.Error("Error doing DoIterativeFindValue")
 // 	}
-//
+
 // 	// res := string(result[:])
 // 	// fmt.Println(res)
 // 	//t.Error("Finish")
 // }
-//
+
 // // EXTRACREDIT
 // //check the correctness of DoIterativeFindNode
 // //When value only store in one node
@@ -292,7 +292,7 @@ package libkademlia
 // 	instance2 := NewKademlia("localhost:5607")
 // 	host2, port2, _ := StringToIpPort("localhost:5607")
 // 	instance1.DoPing(host2, port2)
-//
+
 // 	//Build the  A->B->Tree structure
 // 	tree_node := make([]*Kademlia, 20)
 // 	for i := 0; i < 20; i++ {
@@ -321,7 +321,7 @@ package libkademlia
 // 	if err != nil {
 // 		t.Error("Store value failed")
 // 	}
-//
+
 // 	//After Store, check out the correctness of DoIterativeFindValue
 // 	//by using A to find a value in tree2
 // 	result, err := instance1.DoIterativeFindValue(tmp_contact.NodeID)
@@ -329,6 +329,6 @@ package libkademlia
 // 	if err != nil || string(result) != string(value)  {
 // 		t.Error("Error doing DoIterativeFindValue")
 // 	}
-//
+
 // 	//t.Error("Finish")
 // }

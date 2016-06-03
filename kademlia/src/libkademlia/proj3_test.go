@@ -29,9 +29,10 @@ func StringToIpPort(laddr string) (ip net.IP, port uint16, err error) {
 	return
 }
 
+// extra credit
 func Test1(t *testing.T) {
 	//tree structure
-	//node1 --- treenode[30]
+	//node1 --- treenode[50]
 
 	instance1 := NewKademlia("localhost:4000")
 	treenode := make([]*Kademlia, 50)
@@ -55,6 +56,7 @@ func Test1(t *testing.T) {
 	return
 }
 
+// extra credit
 func Test2(t *testing.T) {
 	//tree structure
 	//node1 --- treenode[20]
@@ -83,6 +85,7 @@ func Test2(t *testing.T) {
 	return
 }
 
+// extra credit
 func Test3(t *testing.T) {
 	//tree structure
 	//node1 --- treenode[40] --- treenode1[30]
