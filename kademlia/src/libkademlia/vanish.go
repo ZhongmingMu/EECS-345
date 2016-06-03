@@ -95,7 +95,6 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	for k, v := range multiSssKeyMap {
 
 		all := append([]byte{k}, v...)
-		fmt.Println("time:" ,i)
 		kk.DoIterativeStore(randIDs[i], all)
 		// fmt.Println("location  Vanish")
 		// fmt.Println(randIDs[i])
@@ -119,9 +118,6 @@ func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
 	count := 0
 	//get the map which contains (k, v)
 	for _, id := range LocationIDs {
-		// fmt.Println("location id Unvanish")
-		// fmt.Println(id)
-
 		all, err := kk.DoIterativeFindValue(id)
 		if err == nil {
 			multiSssKeyMap[all[0]] = all[1:]

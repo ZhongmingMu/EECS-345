@@ -48,7 +48,6 @@ func Test1(t *testing.T) {
 	VdoID := NewRandomID()
 	instance1.Vanish(VdoID, []byte("abcdef"), 40, 30, 300000000000)
 	origin_data := treenode[2].Unvanish(nodeid, VdoID)
-
 	//judge data
 	if !bytes.Equal(origin_data, []byte("abcdef")) {
 		t.Error("do not pair")
@@ -80,10 +79,11 @@ func Test2(t *testing.T) {
 	if !bytes.Equal(origin_data, []byte("abcdef")) {
 		t.Error("no not pair")
 	}
+	//t.Error("Finish")
 	return
 }
 
-func Test3 (t *testing.T) {
+func Test3(t *testing.T) {
 	//tree structure
 	//node1 --- treenode[40] --- treenode1[30]
 	//vanish by node1, treenode1[5] Unvanish
