@@ -4,7 +4,7 @@ package libkademlia
 // as a receiver for the RPC methods, which is required by that package.
 
 import (
-"fmt"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -125,8 +125,6 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		log.Fatal("Listen: ", err)
 	}
 
-	// start handler
-	go k.UpdateHandler()
 
 	// Run RPC server forever.
 	go http.Serve(l, nil)
@@ -143,7 +141,8 @@ func NewKademliaWithId(laddr string, nodeID ID) *Kademlia {
 		}
 	}
 	k.SelfContact = Contact{k.NodeID, host, uint16(port_int)}
-
+	// start handler
+	go k.UpdateHandler()
 	////fmt.Printf("%d: create new kademlia node \n", k.SelfContact.Port)
 	return k
 }
@@ -209,6 +208,8 @@ func (k *Kademlia) UpdateRouteTable(c *Contact) {
 			if client == nil {
 				l.RemoveHead()
 				l.AddTail(c)
+			} else {
+				l.MoveToTail(head)
 			}
 		}
 	}
@@ -318,7 +319,7 @@ func (kk *Kademlia) findCloestNodes(senderid ID, nodeid ID, reschan chan []Conta
 		}
 		diff = diff + 1
 	}
-
+	//fmt.Println(len(nodes))
 	reschan <- nodes //put the result back to res channel
 }
 
@@ -374,16 +375,9 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 	ping := PingMessage{k.SelfContact, NewRandomID()} //setup PING msg
 	pong := new(PongMessage)                          //setup PONG msg
 
-	//client, err := rpc.DialHTTPPath("tcp", host.String() + ":" + strconv.Itoa(int (port)),
-	//	                 rpc.DefaultRPCPath + strconv.Itoa(int (port)))
 	firstPeerStr := host.String() + ":" + strconv.Itoa(int(port))
-	//client, err := rpc.DialHTTP("tcp", firstPeerStr)
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+strconv.Itoa(int(port))) // Set connection
-	//fmt.Printf("%d: finish dialhttpath: \n", k.SelfContact.Port)
-	//client, err := rpc.DialHTTP("tcp", host.String()+":"+strconv.FormatInt(int64(port), 10))
 	if err != nil {
-		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
-		//log.Fatal("dialing:", err)
 		return nil, &CommandFailed{
 			"Unable to ping " + fmt.Sprintf("%s:%v", host.String(), port)}
 	}
@@ -394,15 +388,10 @@ func (k *Kademlia) DoPing(host net.IP, port uint16) (*Contact, error) {
 		client.Close()
 	}()
 
-	//fmt.Printf("%d: finish remote ping: \n", k.SelfContact.Port)
 	if err == nil {
-		//fmt.Printf("%d: call succesfull: \n", k.SelfContact.Port)
-		//fmt.Printf("%d: pong sender port: %d \n", k.SelfContact.Port, pong.Sender.Port)
 
 		k.RTManagerChan <- pong.Sender //set update k-buckets table request to update request contact
-		//c1 := <- k.RTManagerChan
-		//		//fmt.Printf("%d: channel %d \n", k.SelfContact.Port, c1.Port)
-		//fmt.Printf("%d: push to channel \n", k.SelfContact.Port)
+
 		return &(pong.Sender), nil
 	} else {
 		return nil, &CommandFailed{
@@ -421,8 +410,8 @@ func (k *Kademlia) DoStore(contact *Contact, key ID, value []byte) error {
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
 
 	if err != nil {
-		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
 		//log.Fatal("dialing:", err)
+		fmt.Printf("store fault", portStr, firstPeerStr)
 		return &CommandFailed{
 			"Unable to ping " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
 	}
@@ -452,7 +441,6 @@ func (k *Kademlia) DoFindNode(contact *Contact, searchKey ID) ([]Contact, error)
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
 
 	if err != nil {
-		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
 		//log.Fatal("dialing:", err)
 		return nil, &CommandFailed{
 			"Unable to FindNode " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
@@ -488,7 +476,6 @@ func (k *Kademlia) DoFindValue(contact *Contact,
 	client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
 
 	if err != nil {
-		//fmt.Printf("%d: connection failed: \n", k.SelfContact.Port)
 		//log.Fatal("dialing:", err)
 		return nil, nil, &CommandFailed{
 			"Unable to FindValue " + fmt.Sprintf("%s:%v", contact.Host.String(), contact.Port)}
@@ -533,11 +520,12 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	myShortList.initShortList() //initial the shortList
 	//local find ( first find)
 	fbt := FindBucketType{reschan, id, k.SelfContact.NodeID}
-	go func() {
-		k.NodeFindChan <- fbt
-	}()
+//	go func() {
+	k.NodeFindChan <- fbt
+//	}()
 	contacts := <-reschan
 	if len(contacts) < 1 {
+		// fmt.Println("first search = 0")
 		return nil, &CommandFailed{"No Contact is Found"}
 	}
 	//find the closetNode of the first local find nodes
@@ -552,16 +540,20 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	firstpoll = append(firstpoll, myShortList.closetNode)
 	myShortList.visted[myShortList.closetNode.NodeID] = true
 	count := 1
+	// fmt.Print("contacts length:", len(contacts))
 	for i := 0; i < len(contacts); i++ {
 		if _, ok := myShortList.visted[contacts[i].NodeID]; !ok {
+			if count < alpha {
 			firstpoll = append(firstpoll, contacts[i])
 			myShortList.visted[contacts[i].NodeID] = true
 			count++
+			}
 		}
-		if count == alpha {
-			break
+		if count >= alpha {
+			myShortList.pool.PushFront(contacts[i]);
 		}
 	}
+ //SortList(&myShortList, id)
 	go func() {
 		poolchan <- firstpoll
 	}()
@@ -570,13 +562,14 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	go k.start_update_check_service(id, &myShortList, processchan, poolchan, flagchan)
 	//start the iterative find
 	for {
-		count := 0
 		flag := true
 		next_nodes := <-poolchan //get the nodes from where to find
+		// fmt.Println("next_nodes length", len(next_nodes))
+		// fmt.Println("pool length")
+		// fmt.Println((myShortList.pool.Len()))
 		for i := 0; i < len(next_nodes); i++ {
 			go rpc_search(k, next_nodes[i], id, processchan, len(next_nodes))
 		}
-		count++
 		flag = <-flagchan //extract the result of one cycle
 		if flag == false {
 			break
@@ -584,10 +577,11 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 	}
 	//fill the shortlist if possible
 	if len(myShortList.result) < 20 && myShortList.pool.Len() > 0 {
+		// fmt.Print("    adding result")
 		for e := myShortList.pool.Front(); e != nil; e = e.Next() {
 			c := e.Value.(Contact)
 			if _, ok := myShortList.visted[c.NodeID]; !ok { //if node is active and has not been visted, add them to result
-				_, err := k.DoFindNode(&c, id)
+					_, err := k.DoFindNode(&c, id)
 				if err == nil {
 					myShortList.result = append(myShortList.result, c)
 					myShortList.visted[c.NodeID] = true
@@ -598,7 +592,9 @@ func (k *Kademlia) DoIterativeFindNode(id ID) ([]Contact, error) {
 			}
 		}
 	}
+	//fmt.Println(len(myShortList.result))
 	if len(myShortList.result) == 0 {
+		// fmt.Println("result == 0")
 		return nil, &CommandFailed{"No Contact is Found"}
 	}
 
@@ -612,17 +608,22 @@ func (kk *Kademlia) DoIterativeStore(key ID, value []byte) ([]Contact, error) {
 	if err != nil {
 		return nil, &CommandFailed{"No Value is Stored"}
 	}
-
+	
+	// try not connect too frequent
+    time.Sleep(70 * time.Millisecond)
+	
+	// fmt.Println("len of triples :  ", len(triples))
 	for i := 0; i < len(triples); i++ {
 		err := kk.DoStore(&triples[i], key, value)
 		if err == nil {
 			rcvdContacts = append(rcvdContacts, triples[i])
 		}
 	}
-
+	// fmt.Println("len of store :  ", len(rcvdContacts))
 	if len(rcvdContacts) == 0 {
 		return nil, &CommandFailed{"No Value is Stored"}
 	}
+	
 	return rcvdContacts, nil
 }
 
@@ -661,8 +662,11 @@ func (kk *Kademlia) DoIterativeFindValue(key ID) (value []byte, err error) {
 		mgrCloseChan <- true
 	}()
 
-	cs := contacts[0:min(len(contacts), alpha)]
 
+	for _ ,ele := range contacts {
+		myShortList.pool.PushBack(ele)
+	}
+	cs := getContactsFromPool(reqPoolChan, resPoolChan)
 	for running := true; running; cs = getContactsFromPool(reqPoolChan, resPoolChan) {
 		for i := 0; i < len(cs); i++ {
 			// launch rpcFindVal routines
@@ -736,46 +740,56 @@ func (k *Kademlia) UpdateVDO(vdo VanashingDataObject, OriginTime int64) {
 
 func (k *Kademlia) Unvanish(nodeID ID, vdoID ID) (data []byte) {
 	req := GetVDORequest{k.SelfContact, vdoID, NewRandomID()}
-	res := new(GetVDOResult) //set the Result
+	res := new(GetVDOResult) 					//set the Result
+	// fmt.Println("p5")
 
-	ResCon, _ := k.directFindContact(nodeID)
-
+	resChan := make(chan VanashingDataObject)
+	k.GetVDOChan <- GetVDOType{vdoID, resChan}
+	ResVdo := <- resChan
+	if ResVdo.Ciphertext != nil {
+		fmt.Println(ResVdo.AccessKey)
+		data = k.UnvanishData(ResVdo)
+		return
+	}
+	
+	// get contacts from chennel
+	ResCon, _ := k.FindContact(nodeID)
+	// fmt.Println("p1")
 	//iterative find
 	if ResCon == nil {
-		contact1, err := k.DoIterativeFindNode(nodeID)
-		if err != nil {
-			return nil
-		}
+		contact1, _ := k.DoIterativeFindNode(nodeID)
+		// fmt.Println(len(contact1))
 		for _, value := range contact1 {
+				// fmt.Println(value.NodeID)
 				if(nodeID.Equals(value.NodeID)) {
 					ResCon = &value
 					break
 				}
 			}
 	}
+
 	//if find node, find vdo
 	if ResCon != nil {
 		portStr := strconv.Itoa(int(ResCon.Port))
+
 		firstPeerStr := ResCon.Host.String() + ":" + portStr
 		client, err := rpc.DialHTTPPath("tcp", firstPeerStr, rpc.DefaultRPCPath+portStr) //set the connection
 		if err != nil {
+			// fmt.Println(ResCon.NodeID)
+			// fmt.Println("can not connect")
 			return nil
 		}
 
-		err = client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
+		client.Call("KademliaRPC.GetVDO", req, &res) //RPC FindNode func
 		defer func() {
 			client.Close()
 		}()
+		// fmt.Println("accesskey rpc")
+		// fmt.Println(res.VDO.AccessKey)
 		data = k.UnvanishData(res.VDO)
 		return
 	}
-	resChan := make(chan VanashingDataObject)
-	k.GetVDOChan <- GetVDOType{vdoID, resChan}
-	ResVdo := <- resChan
-	if ResVdo.Ciphertext != nil {
-		data = k.UnvanishData(ResVdo)
-		return
-	}
+	
 	data = nil
 	return
 }

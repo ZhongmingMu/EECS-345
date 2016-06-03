@@ -4,19 +4,19 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"fmt"
 	"io"
 	mathrand "math/rand"
 	"sss"
 	"time"
-//	"fmt"
-	"bytes"
+	//"bytes"
 )
 
 type VanashingDataObject struct {
-	AccessKey  int64
-	Ciphertext []byte
-	NumberKeys byte
-	Threshold  byte
+	AccessKey      int64
+	Ciphertext     []byte
+	NumberKeys     byte
+	Threshold      byte
 	timeoutSeconds int
 }
 
@@ -93,21 +93,22 @@ func (kk *Kademlia) VanishData(data []byte, numberKeys byte,
 	//Store key
 	i := 0
 	for k, v := range multiSssKeyMap {
-		// all := []byte{k}
-		// for _, ele := range v {
-		// 	all = append(all, ele)
-		// }
+
 		all := append([]byte{k}, v...)
-		//?? iterative or DoStore
+		fmt.Println("time:" ,i)
 		kk.DoIterativeStore(randIDs[i], all)
+		// fmt.Println("location  Vanish")
+		// fmt.Println(randIDs[i])
 		i++
 	}
+
 	vdo.AccessKey = accessKey
 	vdo.Ciphertext = cipherText
 	vdo.NumberKeys = numberKeys
 	vdo.Threshold = threshold
 	vdo.timeoutSeconds = timeoutSeconds
-
+	fmt.Println("accessKey")
+	fmt.Println(accessKey)
 	return
 }
 
@@ -118,12 +119,19 @@ func (kk *Kademlia) UnvanishData(vdo VanashingDataObject) (data []byte) {
 	count := 0
 	//get the map which contains (k, v)
 	for _, id := range LocationIDs {
-		all, _ := kk.DoIterativeFindValue(id)
-		if !bytes.Equal(all, []byte("")) {
+		// fmt.Println("location id Unvanish")
+		// fmt.Println(id)
+
+		all, err := kk.DoIterativeFindValue(id)
+		if err == nil {
 			multiSssKeyMap[all[0]] = all[1:]
 			count++
 		}
+		if count == int(vdo.Threshold) {
+			break
+		}
 	}
+	fmt.Println(count)
 	//check the piece we get is enough
 	if count < int(vdo.Threshold) {
 		return nil

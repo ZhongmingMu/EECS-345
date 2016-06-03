@@ -1,8 +1,0 @@
-new file: proj2_text.go
-inside function: explanations can be found in code
-1. TestIterativeFindNode1: check out the correctness of DoIterativeFindNode
-2. TestIterativeFindNode2: check out the correctness of DoIterativeFindNode
-3. TestIterativeFindNode3: check out the correctness of DoIterativeFindNode
-4. TestIterativeStore: check out the correctness of DoIterativeStore
-5. TestIterativeFindValue1: check out the correctness of IterativeFIndNode
-6. TestIterativeFindValue2: check out the correctness of IterativeFIndNode
